@@ -15,7 +15,6 @@
     a { color:#2563eb; text-decoration:none; }
     table { border-collapse: collapse; width:100%; }
     th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; }
-    th { background:#f9fafb; font-weight:600; }
     input[type="search"], input[type="datetime-local"] { padding:8px; border:1px solid var(--border); border-radius:8px; margin:8px 8px 8px 0;}
     code { background:#f7f7f7; padding:2px 4px; border-radius:6px; }
     .nowrap { white-space: nowrap; }
@@ -121,6 +120,7 @@
       const grid = el("div", {class:"grid"});
       (ds.projects||[]).forEach(p => {
         const uniqueLocations = (p.commits||[]).reduce((a,c)=>a+(c.counts?.locations||0),0);
+        // Latest commit timestamp for quick glance
         const lastTs = (p.commits||[]).reduce((m,c)=> Math.max(m, c.ts||0), 0);
         grid.append(el("div", {class:"card"},
           el("h3", {}, el("a", {href:`#/${kind}/p/${p.slug}`}, p.full_name)),
@@ -148,12 +148,12 @@
       controls.append(el("span", {class:"muted"}, "From:"), from, el("span", {class:"muted"}, "To:"), to, search);
       app.append(controls);
 
-      // Commits table with headers you asked for
+      // Table
       const table = el("table",
         el("thead", {}, el("tr", {},
-          el("th", {}, "Commit SHA"),
-          el("th", {}, "Time"),
-          el("th", {}, "Number of Violations")
+          el("th", {}, "Commit"),
+          el("th", {}, "Timestamp (UTC)"),
+          el("th", {}, "Unique Violations")
         )),
         el("tbody")
       );
@@ -204,24 +204,24 @@
         {text: sha}
       ]));
 
-      // Header with timestamp and your label change
+      // Header with timestamp
       app.append(el("div", {class:"card"},
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "Timestamp: "), fmtUTC(c.ts)),
-        el("div", {}, el("strong", {}, "Number of unique violations: "), String(c.counts.locations))
+        el("div", {}, el("strong", {}, "Unique Violations: "), String(c.counts.locations))
       ));
 
       // Violations list (clickable)
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
       app.append(input);
 
-      // Table headers updated to File Name | Line Number | Spec | Open (no count column)
       const table = el("table",
         el("thead", {}, el("tr", {},
-          el("th", {}, "File Name"),
-          el("th", {}, "Line Number"),
-          el("th", {}, "Spec"),
-          el("th", {}, "Open")
+          el("th", {}, "File"),
+          el("th", {}, "Line"),
+          el("th", {}, "Specs"),
+          el("th", {}, "Total (distinct specs)"),
+          el("th", {}, "Details")
         )),
         el("tbody")
       );
@@ -241,6 +241,7 @@
               el("td", {class:"nowrap"}, v.file),
               el("td", {}, String(v.line)),
               el("td", {}, v.specs || "—"),
+              el("td", {}, String(v.count || 0)),
               el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open"))
             ));
           });
@@ -269,7 +270,8 @@
         el("div", {}, el("strong", {}, "Project: "), p.full_name),
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
-        el("div", {}, el("strong", {}, "Specs: "), v.specs || "—")
+        el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
+        el("div", {}, el("strong", {}, "Total (distinct specs): "), String(v.count || 0))
       ));
 
       const bd = v.breakdown || [];
