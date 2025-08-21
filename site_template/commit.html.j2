@@ -3,8 +3,8 @@
 {% extends "base.html.j2" %}
 {% block content %}
 <nav class="breadcrumb muted">
-  <a href="../../../index.html">Home</a> /
-  <a href="../index.html">{{ project.full_name }}</a> /
+  <a href="{{ root }}index.html">Home</a> /
+  <a href="{{ root }}projects/{{ project.slug }}/index.html">{{ project.full_name }}</a> /
   {{ commit }}
 </nav>
 
@@ -16,7 +16,7 @@
   <div><strong>DyLin-only:</strong> {{ counts.dylin_only }}</div>
 </div>
 
-<input id="search" type="search" placeholder="Filter by file/spec/message…"/>
+<input id="search" type="search" placeholder="Filter by file/spec…"/>
 
 <table id="violations">
   <thead>
@@ -35,7 +35,7 @@
       <td>{{ r.line }}</td>
       <td class="nowrap">{{ r.flagged_by }}</td>
       <td>{{ r.specs }}</td>
-      <td><a class="nowrap" href="../../../violations/{{ project.slug }}/{{ commit }}/{{ r._id }}.html">Open</a></td>
+      <td><a class="nowrap" href="{{ root }}violations/{{ project.slug }}/{{ commit }}/{{ r._id }}.html">Open</a></td>
     </tr>
     {% endfor %}
   </tbody>
@@ -46,9 +46,7 @@
   const rows = Array.from(document.querySelectorAll('#violations tbody tr'));
   input.addEventListener('input', () => {
     const q = input.value.toLowerCase();
-    rows.forEach(tr => {
-      tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
-    });
+    rows.forEach(tr => { tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none'; });
   });
 </script>
 {% endblock %}

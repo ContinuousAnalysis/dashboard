@@ -3,14 +3,14 @@
 {% extends "base.html.j2" %}
 {% block content %}
 <nav class="breadcrumb muted">
-  <a href="../../index.html">Home</a> / {{ project.full_name }}
+  <a href="{{ root }}index.html">Home</a> / {{ project.full_name }}
 </nav>
 
 <div class="card">
   <div><strong>Commits analyzed:</strong> {{ commits|length }}</div>
   <div><strong>Total unique locations:</strong> {{ project.location_count }}</div>
-  {% if project.csv_source %}
-    <div><a href="{{ project.csv_source }}">Download original CSV</a></div>
+  {% if project.csv_path %}
+    <div><a href="{{ root }}{{ project.csv_path }}">Download original CSV</a></div>
   {% endif %}
 </div>
 
@@ -29,7 +29,7 @@
   <tbody>
     {% for c in commits %}
     <tr>
-      <td><a class="nowrap" href="./commits/{{ c.commit }}.html">{{ c.commit }}</a></td>
+      <td><a class="nowrap" href="{{ root }}projects/{{ project.slug }}/commits/{{ c.commit }}.html">{{ c.commit }}</a></td>
       <td>{{ c.locations }}</td>
       <td>{{ c.flagged_by_both }}</td>
       <td>{{ c.flagged_by_pymop_only }}</td>
@@ -44,9 +44,7 @@
   const rows = Array.from(document.querySelectorAll('#commits tbody tr'));
   input.addEventListener('input', () => {
     const q = input.value.toLowerCase();
-    rows.forEach(tr => {
-      tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none';
-    });
+    rows.forEach(tr => { tr.style.display = tr.innerText.toLowerCase().includes(q) ? '' : 'none'; });
   });
 </script>
 {% endblock %}

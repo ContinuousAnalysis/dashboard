@@ -24,7 +24,7 @@
 </head>
 <body>
 <header>
-  <h1><a href="../index.html">{{ heading or "RV Dashboard" }}</a></h1>
+  <h1><a href="{{ root }}index.html">{{ heading or "RV Dashboard" }}</a></h1>
   <span class="muted">Last updated: {{ generated }} UTC</span>
 </header>
 {{ content | safe }}
