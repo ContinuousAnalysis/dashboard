@@ -27,10 +27,16 @@ if TOKEN:
     HDRS["Authorization"] = f"Bearer {TOKEN}"
 
 def gh_get(url: str) -> Any:
-    r = requests.get(url, headers=HDRS, timeout=60); r.raise_for_status(); time.sleep(0.2); return r.json()
+    r = requests.get(url, headers=HDRS, timeout=60)
+    r.raise_for_status()
+    time.sleep(0.2)
+    return r.json()
 
 def gh_get_bin(url: str) -> bytes:
-    r = requests.get(url, headers=HDRS, timeout=180); r.raise_for_status(); time.sleep(0.2); return r.content
+    r = requests.get(url, headers=HDRS, timeout=180)
+    r.raise_for_status()
+    time.sleep(0.2)
+    return r.content
 
 # ---------- Artifact helpers ----------
 _TS_IN_NAME = re.compile(r"(\d{8}T\d{6}Z)")
@@ -76,6 +82,7 @@ def find_csv(zip_bytes: bytes, candidates: List[str]) -> Optional[Tuple[str, byt
         for want in candidates:
             if want in names:
                 with zf.open(want) as f: return want, f.read()
+        # fallback: any CSV
         for n in names:
             if n.lower().endswith(".csv"):
                 with zf.open(n) as f: return n, f.read()
@@ -94,30 +101,39 @@ def _normalize_path(p: str) -> str:
 
 def parse_vloc_cell(cell: str) -> List[dict]:
     """
-    Parse 'Spec:/path/file.py:34;OtherSpec:/usr/lib/.../x.py:495'
-    Returns list of dicts {spec, file, line}
+    Parse strings like:
+      Spec:/path/file.py:34;OtherSpec:/usr/lib/.../x.py:495
+    Returns: list of dicts {spec, file, line}
     """
     out = []
-    if cell is None or (isinstance(cell, float) and pd.isna(cell)): return out
+    if cell is None:
+        return out
     s = str(cell).strip()
-    if not s: return out
+    if not s:
+        return out
+
     for raw in ENTRY_SEP.split(s.strip("; ")):
-        if not raw: continue
-        # last ':' separates line number
-        if ":" not in raw: continue
+        if not raw:
+            continue
+        # Expect "<spec>:<path>:<line>" but <path> may contain colons
+        if ":" not in raw:
+            continue
         left2, line_s = raw.rsplit(":", 1)
         try:
             line = int(line_s.strip())
         except Exception:
             continue
-        # first ':' separates spec vs file (file may contain colons)
+
         if ":" in left2:
             spec, file_part = left2.split(":", 1)
         else:
             spec, file_part = "", left2
+
         spec = (spec or "Unknown").strip()
         file_part = _normalize_path(file_part.strip())
-        if not file_part: continue
+        if not file_part:
+            continue
+
         out.append({"spec": spec, "file": file_part, "line": line})
     return out
 
@@ -125,13 +141,15 @@ def to_epoch(ts_val) -> Optional[int]:
     """
     Parse many timestamp formats to epoch seconds (UTC).
     Supports:
-      - digits (10s / 13ms)
+      - epoch seconds (10) or milliseconds (13)
       - ISO-like strings with/without 'Z'
-      - your CSV's 'YYYYMMDD_HHMM' (e.g. 20250821_1229)
+      - 'YYYYMMDD_HHMM' (e.g. 20250821_1229)
     """
-    if ts_val is None or (isinstance(ts_val, float) and pd.isna(ts_val)): return None
+    if ts_val is None:
+        return None
     s = str(ts_val).strip()
-    if not s or s.lower() == "nan": return None
+    if not s or s.lower() == "nan":
+        return None
 
     # 1) epoch seconds or milliseconds
     if s.isdigit() and len(s) in (10, 13):
@@ -182,9 +200,12 @@ def build_dataset(prefix: str) -> dict:
         owner, repo = full.split("/", 1)
         art = latest_with_prefix(owner, repo, prefix)
 
-        proj = {"slug": full.replace("/","-").lower(), "full_name": full,
-                "latest_artifact_name": art.get("name") if art else None,
-                "commits": []}
+        proj = {
+            "slug": full.replace("/","-").lower(),
+            "full_name": full,
+            "latest_artifact_name": art.get("name") if art else None,
+            "commits": []
+        }
 
         if art:
             zip_bytes = gh_get_bin(art["archive_download_url"])
@@ -194,7 +215,8 @@ def build_dataset(prefix: str) -> dict:
                     raise FileNotFoundError(f"No CSV found in artifact {art['name']}")
             else:
                 _, csv_bytes = found
-                df = pd.read_csv(io.BytesIO(csv_bytes))
+                # Force string dtype and fill NaN so new_violations is never lost
+                df = pd.read_csv(io.BytesIO(csv_bytes), dtype=str).fillna("")
                 df.columns = [c.strip().lower() for c in df.columns]
 
                 required = {"timestamp", "current_commit_sha", "new_violations"}
@@ -204,10 +226,12 @@ def build_dataset(prefix: str) -> dict:
                 # Build commits map strictly from new_violations
                 commits_map: Dict[str, dict] = {}
                 for _, r in df.iterrows():
-                    sha = str(r["current_commit_sha"])
-                    ts  = to_epoch(r["timestamp"])
-                    new_v = r.get("new_violations", "")
-                    locs = parse_vloc_cell(new_v) if isinstance(new_v, str) and new_v.strip() else []
+                    sha = str(r.get("current_commit_sha", "")).strip()
+                    if not sha:
+                        continue
+                    ts  = to_epoch(r.get("timestamp", ""))
+                    new_v = str(r.get("new_violations", "") or "").strip()
+                    locs = parse_vloc_cell(new_v) if new_v else []
 
                     if sha not in commits_map:
                         commits_map[sha] = {"sha": sha, "ts": ts, "violations_raw": []}
@@ -231,7 +255,7 @@ def build_dataset(prefix: str) -> dict:
                             "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
                             "file": f,
                             "line": int(ln),
-                            "count": len(spec_list),
+                            "count": len(spec_list), 
                             "specs": ";".join(spec_list),
                             "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
