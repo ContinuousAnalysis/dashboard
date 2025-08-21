@@ -159,10 +159,8 @@
 
       function parseLocalDT(val){
         if (!val) return null;
-        // datetime-local produces "YYYY-MM-DDTHH:MM"
         const d = new Date(val);
         return isNaN(d.getTime()) ? null : Math.floor(d.getTime()/1000);
-        // (interprets as local; compare with epoch ts which is UTC-based — okay, since epoch is absolute)
       }
 
       function draw(){
@@ -202,6 +200,7 @@
         {text: sha}
       ]));
 
+      // --- Shows the commit time based on timestamp (your request) ---
       app.append(el("div", {class:"card"},
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "Timestamp: "), c.ts ? new Date(c.ts*1000).toUTCString() : "—"),
@@ -216,7 +215,7 @@
           el("th", {}, "File"),
           el("th", {}, "Line"),
           el("th", {}, "Specs"),
-          el("th", {}, "Total count"),
+          el("th", {}, "Total (distinct specs)"),
           el("th", {}, "Details")
         )),
         el("tbody")
@@ -264,7 +263,7 @@
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
         el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
-        el("div", {}, el("strong", {}, "Total count: "), String(v.count || 0))
+        el("div", {}, el("strong", {}, "Total (distinct specs): "), String(v.count || 0))
       ));
 
       const bd = v.breakdown || [];

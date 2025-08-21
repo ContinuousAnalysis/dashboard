@@ -82,6 +82,7 @@ def find_csv(zip_bytes: bytes, candidates: List[str]) -> Optional[Tuple[str, byt
         for want in candidates:
             if want in names:
                 with zf.open(want) as f: return want, f.read()
+        # fallback: any CSV
         for n in names:
             if n.lower().endswith(".csv"):
                 with zf.open(n) as f: return n, f.read()
@@ -101,8 +102,8 @@ def _normalize_path(p: str) -> str:
 def parse_vloc_cell(cell: str) -> List[dict]:
     """
     Parse strings like:
-      Spec:/path/file.py:34=262;OtherSpec:/usr/lib/.../x.py:495=2
-    Returns: list of dicts {spec, file, line, count}
+      Spec:/path/file.py:34;OtherSpec:/usr/lib/.../x.py:495
+    Returns: list of dicts {spec, file, line}
     """
     out = []
     if cell is None or (isinstance(cell, float) and pd.isna(cell)):
@@ -111,21 +112,13 @@ def parse_vloc_cell(cell: str) -> List[dict]:
     if not s: return out
 
     for raw in ENTRY_SEP.split(s.strip("; ")):
-        if not raw: continue
-        # Split off optional =count
-        if "=" in raw:
-            left, count_s = raw.rsplit("=", 1)
-            try:
-                count = int(count_s.strip())
-            except ValueError:
-                count = 1
-        else:
-            left, count = raw, 1
-
-        # left should be "<spec>:<path>:<line>" but <path> can contain colons
-        if ":" not in left:
+        if not raw:
             continue
-        left2, line_s = left.rsplit(":", 1)
+
+        # Expect "<spec>:<path>:<line>" but <path> may contain colons
+        if ":" not in raw:
+            continue
+        left2, line_s = raw.rsplit(":", 1)
         try:
             line = int(line_s.strip())
         except ValueError:
@@ -141,7 +134,7 @@ def parse_vloc_cell(cell: str) -> List[dict]:
         if not file_part:
             continue
 
-        out.append({"spec": spec, "file": file_part, "line": line, "count": count})
+        out.append({"spec": spec, "file": file_part, "line": line})
     return out
 
 def to_epoch(ts_val) -> Optional[int]:
@@ -171,8 +164,8 @@ def build_dataset(prefix: str) -> dict:
     """
     Reads artifacts with given prefix.
     Expects CSV columns (lowercased after read):
-      timestamp, current_commit_sha, current_violations
-    Aggregates violations by (file,line) and per-spec counts.
+      timestamp, current_commit_sha, new_violations
+    Aggregates violations by (file,line) with distinct spec list per location.
     """
     projects_out = []
     total_commits = 0
@@ -200,7 +193,7 @@ def build_dataset(prefix: str) -> dict:
                 df = pd.read_csv(io.BytesIO(csv_bytes))
                 df.columns = [c.strip().lower() for c in df.columns]
 
-                required = {"timestamp", "current_commit_sha", "current_violations"}
+                required = {"timestamp", "current_commit_sha", "new_violations"}
                 if not required.issubset(df.columns):
                     raise ValueError(f"CSV missing required columns; found {df.columns.tolist()}")
 
@@ -209,7 +202,7 @@ def build_dataset(prefix: str) -> dict:
                 for _, r in df.iterrows():
                     sha = str(r["current_commit_sha"])
                     ts  = to_epoch(r["timestamp"])
-                    locs = parse_vloc_cell(r["current_violations"])
+                    locs = parse_vloc_cell(r["new_violations"])
 
                     if sha not in commits_map:
                         commits_map[sha] = {"sha": sha, "ts": ts, "violations_raw": []}
@@ -217,24 +210,24 @@ def build_dataset(prefix: str) -> dict:
                         commits_map[sha]["ts"] = ts
                     commits_map[sha]["violations_raw"].extend(locs)
 
-                # Aggregate locations & build output
+                # Aggregate locations (distinct specs per file:line)
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
                     for v in obj["violations_raw"]:
                         key = (v["file"], v["line"])
-                        rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "count": 0, "spec_counts": {}})
-                        rec["count"] += int(v["count"])
-                        rec["spec_counts"][v["spec"]] = rec["spec_counts"].get(v["spec"], 0) + int(v["count"])
+                        rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
+                        rec["specs"].add(v["spec"])
 
                     violations = []
                     for (f, ln), rec in sorted(by_loc.items(), key=lambda t: (t[0][0], t[0][1])):
-                        specs = ";".join(sorted(rec["spec_counts"].keys()))
-                        breakdown = [{"spec": s, "count": int(c)} for s, c in sorted(rec["spec_counts"].items())]
+                        spec_list = sorted(rec["specs"])
+                        specs = ";".join(spec_list)
+                        breakdown = [{"spec": s, "count": 1} for s in spec_list]  # each spec present once
                         violations.append({
                             "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
                             "file": f,
                             "line": int(ln),
-                            "count": int(rec["count"]),
+                            "count": len(spec_list),   # number of distinct specs at that location
                             "specs": specs,
                             "breakdown": breakdown
                         })
