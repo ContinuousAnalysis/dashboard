@@ -1,5 +1,5 @@
 import os, io, json, time, zipfile, pathlib, hashlib, re, datetime as dt
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 import requests
 import pandas as pd
 from shutil import copyfile
@@ -27,13 +27,14 @@ def gh_get_bin(url: str) -> bytes:
     r = requests.get(url, headers=HDRS, timeout=180); r.raise_for_status(); time.sleep(0.2); return r.content
 
 # ----- artifact selection -----
-ARTIFACT_PREFIX = CONFIG["artifact_name_prefix"]
+MON_PREFIX = CONFIG["monitoring_prefix"]
+HIS_PREFIX = CONFIG["history_prefix"]
 CSV_CANDS = CONFIG["csv_name_candidates"]
 FAIL_IF_MISSING_CSV = CONFIG.get("fail_if_missing_csv", True)
 _TS_RE = re.compile(r"(\d{8}T\d{6}Z)")
 
 def parse_name_ts(name: str) -> Optional[dt.datetime]:
-    m = _TS_RE.search(name or ""); 
+    m = _TS_RE.search(name or "")
     if not m: return None
     return dt.datetime.strptime(m.group(1), "%Y%m%dT%H%M%SZ").replace(tzinfo=dt.timezone.utc)
 
@@ -47,14 +48,14 @@ def list_artifacts(owner: str, repo: str):
         if len(items)<100: break
         page += 1
 
-def looks_right(a: dict, repo: str) -> bool:
+def looks_with_prefix(a: dict, repo: str, prefix: str) -> bool:
     n = a.get("name","")
-    return n.startswith(ARTIFACT_PREFIX) and not a.get("expired") and (f"-{repo}-" in n)
+    return n.startswith(prefix) and not a.get("expired") and (f"-{repo}-" in n)
 
-def latest_history(owner: str, repo: str) -> Optional[dict]:
+def latest_with_prefix(owner: str, repo: str, prefix: str) -> Optional[dict]:
     cands=[]
     for a in list_artifacts(owner, repo):
-        if not looks_right(a, repo): continue
+        if not looks_with_prefix(a, repo, prefix): continue
         ts = parse_name_ts(a.get("name",""))
         created = a.get("created_at")
         created_dt = None
@@ -67,7 +68,7 @@ def latest_history(owner: str, repo: str) -> Optional[dict]:
     cands.sort(key=lambda t: t[1], reverse=True)
     return cands[0][0]
 
-def find_csv(zip_bytes: bytes):
+def find_csv(zip_bytes: bytes) -> Optional[Tuple[str, bytes]]:
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as zf:
         names = zf.namelist()
         for want in CSV_CANDS:
@@ -101,19 +102,20 @@ def parse_vloc_cell(project: str, commit: str, algo: str, cell: str) -> List[dic
         })
     return out
 
-def build():
+def build_dataset(prefix: str):
+    """Return: { projects: [...], totals: {commits, locations} }"""
     projects_out = []
     total_commits = 0
     total_locations = 0
 
     for full in REPOS:
         owner, repo = full.split("/", 1)
-        art = latest_history(owner, repo)
+        art = latest_with_prefix(owner, repo, prefix)
         proj = {
             "slug": full.replace("/","-").lower(),
             "full_name": full,
             "latest_artifact_name": art.get("name") if art else None,
-            "commits": []  # filled below
+            "commits": []
         }
 
         parsed_rows=[]
@@ -121,7 +123,7 @@ def build():
             zip_bytes = gh_get_bin(art["archive_download_url"])
             found = find_csv(zip_bytes)
             if not found:
-                if FAIL_IF_MISSING_CSV: 
+                if FAIL_IF_MISSING_CSV:
                     raise FileNotFoundError(f"No CSV found in artifact {art['name']}")
             else:
                 csv_name, csv_bytes = found
@@ -142,7 +144,7 @@ def build():
                 .groupby(["project","commit","tool","file","line","spec"], dropna=False)["count"]
                 .sum().reset_index()
             )
-            # totals per tool per location
+
             tool_totals = (
                 agg.groupby(["project","commit","tool","file","line"], dropna=False)["count"]
                 .sum().rename("tool_total").reset_index()
@@ -158,7 +160,6 @@ def build():
                 axis=1
             )
 
-            # spec breakdown by location
             spec_breakdown = (
                 agg.pivot_table(index=["project","commit","file","line","spec"], columns="tool", values="count", fill_value=0)
                 .reset_index()
@@ -166,7 +167,6 @@ def build():
             for t in ["pymop","dylin"]:
                 if t not in spec_breakdown.columns: spec_breakdown[t]=0
 
-            # commit list for this project
             commit_keys = sorted(tool_pivot["commit"].unique().tolist())
             for sha in commit_keys:
                 rows = tool_pivot[tool_pivot["commit"]==sha].copy().sort_values(["file","line"])
@@ -191,7 +191,6 @@ def build():
                     "violations": []
                 }
 
-                # attach violation detail + per-spec breakdown
                 for _, r in rows.iterrows():
                     loc_specs = spec_breakdown[
                         (spec_breakdown["project"]==proj["full_name"]) &
@@ -216,15 +215,20 @@ def build():
 
         projects_out.append(proj)
 
-    # write data.json
-    payload = {
-        "generated_at": int(time.time()),
+    return {
         "projects": projects_out,
         "totals": {"commits": total_commits, "locations": total_locations}
     }
-    (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
-    # copy SPA
+def build():
+    payload = {
+        "generated_at": int(time.time()),
+        "datasets": {
+            "monitoring": build_dataset(MON_PREFIX),
+            "history":    build_dataset(HIS_PREFIX)
+        }
+    }
+    (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     copyfile(WEB / "index.html", OUT / "index.html")
 
 if __name__ == "__main__":

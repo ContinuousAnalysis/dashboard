@@ -1,5 +1,6 @@
 {
-  "artifact_name_prefix": "continuous-analysis-results-history-",
+  "monitoring_prefix": "continuous-analysis-results-",
+  "history_prefix": "continuous-analysis-history-results-",
   "csv_name_candidates": [
     "continuous_analysis_over_time_results.csv"
   ],
