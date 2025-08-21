@@ -15,7 +15,7 @@
     a { color:#2563eb; text-decoration:none; }
     table { border-collapse: collapse; width:100%; }
     th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; }
-    input[type="search"]{ padding:8px; border:1px solid var(--border); border-radius:8px; width:100%; margin:8px 0;}
+    input[type="search"], input[type="datetime-local"] { padding:8px; border:1px solid var(--border); border-radius:8px; margin:8px 8px 8px 0;}
     code { background:#f7f7f7; padding:2px 4px; border-radius:6px; }
     .nowrap { white-space: nowrap; }
     .pill { background:#f3f4f6; border-radius:999px; padding:2px 8px; }
@@ -23,11 +23,12 @@
     .tabs { display:flex; gap:8px; border-bottom:1px solid var(--border); margin-bottom:16px; }
     .tab { padding:8px 12px; border:1px solid var(--tab); border-bottom:none; border-radius:8px 8px 0 0; background:#fafafa; }
     .tab.active { background:white; border-color: var(--active); color: var(--active); font-weight:600; }
+    .controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   </style>
 </head>
 <body>
   <header>
-    <h1><a href="#/">Dynamic Continuous Analysis Dashboard</a></h1>
+    <h1><a href="#/now">RV Dashboard</a></h1>
     <span class="muted" id="updated"></span>
   </header>
 
@@ -39,7 +40,6 @@
   <div id="app"></div>
 
   <script>
-    // DOM helper
     const el = (t, p={}, ...kids) => {
       const n = document.createElement(t);
       for (const [k,v] of Object.entries(p||{})) {
@@ -79,11 +79,6 @@
       const app = document.getElementById("app");
       app.innerHTML = "";
       const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-      // routes:
-      // now|hist
-      // now|hist / p / slug
-      // now|hist / p / slug / c / sha
-      // now|hist / p / slug / c / sha / v / id
       const kind = (parts[0]==="hist") ? "hist" : "now";
       setActiveTab(kind);
       const ds = pickDataset(kind);
@@ -97,6 +92,7 @@
       app.append(el("div", {}, "Not found"));
     }
 
+    // --------- Common helpers ---------
     function breadcrumb(items){
       const nav = el("nav", {class:"breadcrumb muted"});
       items.forEach((it, i) => {
@@ -105,7 +101,11 @@
       });
       return nav;
     }
+    function findProject(ds, slug){ return (ds.projects||[]).find(p => p.slug === slug); }
+    function findCommit(p, sha){ return (p.commits||[]).find(c => c.sha === sha); }
+    function findViolation(c, id){ return (c.violations||[]).find(v => v.id === id); }
 
+    // --------- Views ---------
     function renderHome(app, ds, kind){
       if (!ds) return app.append(el("div", {}, "No data"));
       const totals = ds.totals || {commits:0, locations:0};
@@ -130,44 +130,64 @@
       app.append(grid);
     }
 
-    function findProject(ds, slug){ return (ds.projects||[]).find(p => p.slug === slug); }
-    function findCommit(p, sha){ return (p.commits||[]).find(c => c.sha === sha); }
-    function findViolation(c, id){ return (c.violations||[]).find(v => v.id === id); }
-
     function renderProject(app, ds, kind, slug){
       const p = findProject(ds, slug);
       if (!p) return app.append(el("div", {}, "Project not found"));
       app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
 
-      const commits = (p.commits||[]).slice().sort((a,b)=> a.sha.localeCompare(b.sha));
-      const input = el("input", {type:"search", placeholder:"Filter commits by SHA…"});
-      app.append(input);
+      // Controls: time range (UTC) + text filter
+      const controls = el("div", {class:"controls"});
+      const from = el("input", {type:"datetime-local", id:"from"});
+      const to   = el("input", {type:"datetime-local", id:"to"});
+      const search = el("input", {type:"search", placeholder:"Filter commits by SHA…"});
+      controls.append(el("span", {class:"muted"}, "From:"), from, el("span", {class:"muted"}, "To:"), to, search);
+      app.append(controls);
 
+      // Table
       const table = el("table",
         el("thead", {}, el("tr", {},
-          el("th", {}, "Commit"), el("th", {}, "Unique locations"),
-          el("th", {}, "Both"), el("th", {}, "PyMOP-only"), el("th", {}, "DyLin-only")
+          el("th", {}, "Commit"),
+          el("th", {}, "Timestamp (UTC)"),
+          el("th", {}, "Unique locations")
         )),
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
+      app.append(table);
+
+      const commits = (p.commits||[]).slice().sort((a,b) => (a.ts||0) - (b.ts||0));
+
+      function parseLocalDT(val){
+        if (!val) return null;
+        // datetime-local produces "YYYY-MM-DDTHH:MM"
+        const d = new Date(val);
+        return isNaN(d.getTime()) ? null : Math.floor(d.getTime()/1000);
+        // (interprets as local; compare with epoch ts which is UTC-based — okay, since epoch is absolute)
+      }
 
       function draw(){
         tbody.innerHTML = "";
-        const q = (input.value||"").toLowerCase();
-        commits.filter(c => c.sha.toLowerCase().includes(q)).forEach(c => {
-          tbody.append(el("tr", {},
-            el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
-            el("td", {}, String(c.counts.locations)),
-            el("td", {}, String(c.counts.both)),
-            el("td", {}, String(c.counts.pymop_only)),
-            el("td", {}, String(c.counts.dylin_only)),
-          ));
-        });
+        const q = (search.value||"").toLowerCase();
+        const fromEpoch = parseLocalDT(from.value);
+        const toEpoch = parseLocalDT(to.value);
+
+        commits
+          .filter(c => !q || c.sha.toLowerCase().includes(q))
+          .filter(c => fromEpoch==null || (c.ts||0) >= fromEpoch)
+          .filter(c => toEpoch==null || (c.ts||0) <= toEpoch)
+          .forEach(c => {
+            const tsStr = c.ts ? new Date(c.ts*1000).toUTCString() : "—";
+            tbody.append(el("tr", {},
+              el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
+              el("td", {}, tsStr),
+              el("td", {}, String(c.counts.locations))
+            ));
+          });
       }
-      input.addEventListener("input", draw);
+      from.addEventListener("change", draw);
+      to.addEventListener("change", draw);
+      search.addEventListener("input", draw);
       draw();
-      app.append(table);
     }
 
     function renderCommit(app, ds, kind, slug, sha){
@@ -184,10 +204,8 @@
 
       app.append(el("div", {class:"card"},
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
-        el("div", {}, el("strong", {}, "Unique locations: "), String(c.counts.locations)),
-        el("div", {}, el("strong", {}, "Flagged by both: "), String(c.counts.both)),
-        el("div", {}, el("strong", {}, "PyMOP-only: "), String(c.counts.pymop_only)),
-        el("div", {}, el("strong", {}, "DyLin-only: "), String(c.counts.dylin_only)),
+        el("div", {}, el("strong", {}, "Timestamp: "), c.ts ? new Date(c.ts*1000).toUTCString() : "—"),
+        el("div", {}, el("strong", {}, "Unique locations: "), String(c.counts.locations))
       ));
 
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
@@ -195,8 +213,11 @@
 
       const table = el("table",
         el("thead", {}, el("tr", {},
-          el("th", {}, "File"), el("th", {}, "Line"),
-          el("th", {}, "Flagged by"), el("th", {}, "Specs"), el("th", {}, "Details")
+          el("th", {}, "File"),
+          el("th", {}, "Line"),
+          el("th", {}, "Specs"),
+          el("th", {}, "Total count"),
+          el("th", {}, "Details")
         )),
         el("tbody")
       );
@@ -208,21 +229,19 @@
         c.violations.filter(v =>
           v.file.toLowerCase().includes(q) ||
           String(v.line).includes(q) ||
-          (v.specs||"").toLowerCase().includes(q) ||
-          v.flagged_by.toLowerCase().includes(q)
+          (v.specs||"").toLowerCase().includes(q)
         ).forEach(v => {
           tbody.append(el("tr", {},
             el("td", {class:"nowrap"}, v.file),
             el("td", {}, String(v.line)),
-            el("td", {class:"nowrap"}, v.flagged_by),
             el("td", {}, v.specs || ""),
-            el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open")),
+            el("td", {}, String(v.count || 0)),
+            el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open"))
           ));
         });
       }
       input.addEventListener("input", draw);
       draw();
-      app.append(table);
     }
 
     function renderViolation(app, ds, kind, slug, sha, id){
@@ -244,17 +263,21 @@
         el("div", {}, el("strong", {}, "Project: "), p.full_name),
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
-        el("div", {}, el("strong", {}, "Flagged by: "), `${v.flagged_by} (PyMOP=${v.pymop}, DyLin=${v.dylin})`),
+        el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
+        el("div", {}, el("strong", {}, "Total count: "), String(v.count || 0))
       ));
 
       const bd = v.breakdown || [];
       const table = el("table",
-        el("thead", {}, el("tr", {}, el("th", {}, "Spec"), el("th", {}, "PyMOP"), el("th", {}, "DyLin"))),
+        el("thead", {}, el("tr", {}, el("th", {}, "Spec"), el("th", {}, "Count"))),
         el("tbody", {}, ...(bd.length ? bd.map(b =>
-          el("tr", {}, el("td", {}, b.spec), el("td", {}, String(b.pymop)), el("td", {}, String(b.dylin)))
-        ) : [el("tr", {}, el("td", {colspan:"3"}, el("span", {class:"muted"}, "No spec entries found.")))]))
+          el("tr", {}, el("td", {}, b.spec), el("td", {}, String(b.count)))
+        ) : [el("tr", {}, el("td", {colspan:"2"}, el("span", {class:"muted"}, "No spec entries found.")))]))
       );
-      app.append(el("div", {class:"card"}, el("h3", {}, "Spec breakdown"), table));
+      app.append(el("div", {class:"card"},
+        el("h3", {}, "Spec breakdown"),
+        table
+      ));
     }
   </script>
 </body>
