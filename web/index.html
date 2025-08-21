@@ -1,0 +1,241 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>RV Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root { --muted:#6b7280; --border:#e5e7eb; }
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 24px; }
+    header { display:flex; gap:16px; align-items:baseline; margin-bottom:16px; }
+    h1 { margin:0; }
+    .muted { color: var(--muted); }
+    .card { border:1px solid var(--border); border-radius:12px; padding:16px; margin:12px 0; }
+    .grid { display:grid; gap:12px; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+    a { color:#2563eb; text-decoration:none; }
+    table { border-collapse: collapse; width:100%; }
+    th, td { padding:8px 10px; border-bottom:1px solid var(--border); text-align:left; }
+    input[type="search"]{ padding:8px; border:1px solid var(--border); border-radius:8px; width:100%; margin:8px 0;}
+    code { background:#f7f7f7; padding:2px 4px; border-radius:6px; }
+    .nowrap { white-space: nowrap; }
+    .pill { background:#f3f4f6; border-radius:999px; padding:2px 8px; }
+    .breadcrumb a { color: inherit; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1><a href="#/">RV Dashboard</a></h1>
+    <span class="muted" id="updated"></span>
+  </header>
+  <div id="app"></div>
+
+  <script>
+    // tiny DOM helper
+    const el = (t, p={}, ...kids) => {
+      const n = document.createElement(t);
+      for (const [k,v] of Object.entries(p)) {
+        if (k === "class") n.className = v;
+        else if (k === "html") n.innerHTML = v;
+        else n.setAttribute(k, v);
+      }
+      kids.flat().forEach(k => n.append(k?.nodeType ? k : document.createTextNode(k ?? "")));
+      return n;
+    };
+
+    let DATA = null;
+
+    async function load() {
+      const res = await fetch("./data.json", {cache:"no-store"});
+      DATA = await res.json();
+      const d = new Date((DATA.generated_at||0)*1000);
+      document.getElementById("updated").textContent = `Last updated: ${d.toUTCString()}`;
+      route();
+    }
+
+    window.addEventListener("hashchange", route);
+    window.addEventListener("load", load);
+
+    function route() {
+      if (!DATA) return;
+      const app = document.getElementById("app");
+      app.innerHTML = "";
+      const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
+      // routes: "", ["p", slug], ["p", slug, "c", sha], ["p", slug, "c", sha, "v", id]
+      if (parts.length === 0) return renderHome(app);
+      if (parts[0] === "p" && parts[1] && parts.length === 2) return renderProject(app, parts[1]);
+      if (parts[0] === "p" && parts[1] && parts[2] === "c" && parts[3] && parts.length === 4) return renderCommit(app, parts[1], parts[3]);
+      if (parts[0] === "p" && parts[1] && parts[2] === "c" && parts[3] && parts[4] === "v" && parts[5]) return renderViolation(app, parts[1], parts[3], parts[5]);
+      app.append(el("div", {}, "Not found"));
+    }
+
+    function findProject(slug){ return DATA.projects.find(p => p.slug === slug); }
+    function findCommit(p, sha){ return (p.commits||[]).find(c => c.sha === sha); }
+    function findViolation(c, id){ return (c.violations||[]).find(v => v.id === id); }
+
+    function breadcrumb(items){
+      const nav = el("nav", {class:"breadcrumb muted"});
+      items.forEach((it, i) => {
+        nav.append(it.href ? el("a", {href: it.href}, it.text) : el("span", {}, it.text));
+        if (i < items.length-1) nav.append(" / ");
+      });
+      return nav;
+    }
+
+    // ---------- Views ----------
+    function renderHome(app){
+      const totals = DATA.totals || {commits:0, locations:0};
+      app.append(el("div", {class:"card"},
+        el("strong", {}, "Total projects: "), String(DATA.projects.length),
+        " • ", el("strong", {}, "Total commits: "), String(totals.commits),
+        " • ", el("strong", {}, "Total unique locations: "), String(totals.locations),
+      ));
+
+      const grid = el("div", {class:"grid"});
+      DATA.projects.forEach(p => {
+        const uniqueLocations = (p.commits||[]).reduce((a,c)=>a+(c.counts?.locations||0),0);
+        grid.append(el("div", {class:"card"},
+          el("h3", {}, el("a", {href:`#/p/${p.slug}`}, p.full_name)),
+          el("div", {class:"muted"}, `Latest history artifact: ${p.latest_artifact_name || "N/A"}`),
+          el("div", {style:"margin-top:8px;"},
+            el("span", {class:"pill"}, `Commits: ${p.commits.length}`), " ",
+            el("span", {class:"pill"}, `Unique locations: ${uniqueLocations}`)
+          )
+        ));
+      });
+      app.append(grid);
+    }
+
+    function renderProject(app, slug){
+      const p = findProject(slug);
+      if (!p) return app.append(el("div", {}, "Project not found"));
+      app.append(breadcrumb([{href:"#/", text:"Home"}, {text:p.full_name}]));
+
+      const commits = (p.commits||[]).slice().sort((a,b) => a.sha.localeCompare(b.sha));
+      const input = el("input", {type:"search", placeholder:"Filter commits by SHA…"});
+      app.append(input);
+
+      const table = el("table", {id:"commits"},
+        el("thead", {}, el("tr", {},
+          el("th", {}, "Commit"),
+          el("th", {}, "Unique locations"),
+          el("th", {}, "Both"),
+          el("th", {}, "PyMOP-only"),
+          el("th", {}, "DyLin-only"),
+        )),
+        el("tbody")
+      );
+      const tbody = table.querySelector("tbody");
+
+      function draw(){
+        tbody.innerHTML = "";
+        const q = (input.value||"").toLowerCase();
+        commits.filter(c => c.sha.toLowerCase().includes(q)).forEach(c => {
+          tbody.append(el("tr", {},
+            el("td", {}, el("a", {href:`#/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
+            el("td", {}, String(c.counts.locations)),
+            el("td", {}, String(c.counts.both)),
+            el("td", {}, String(c.counts.pymop_only)),
+            el("td", {}, String(c.counts.dylin_only)),
+          ));
+        });
+      }
+      input.addEventListener("input", draw);
+      draw();
+      app.append(table);
+    }
+
+    function renderCommit(app, slug, sha){
+      const p = findProject(slug);
+      if (!p) return app.append(el("div", {}, "Project not found"));
+      const c = findCommit(p, sha);
+      if (!c) return app.append(el("div", {}, "Commit not found"));
+
+      app.append(breadcrumb([
+        {href:"#/", text:"Home"},
+        {href:`#/p/${p.slug}`, text:p.full_name},
+        {text: sha}
+      ]));
+
+      app.append(el("div", {class:"card"},
+        el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
+        el("div", {}, el("strong", {}, "Unique locations: "), String(c.counts.locations)),
+        el("div", {}, el("strong", {}, "Flagged by both: "), String(c.counts.both)),
+        el("div", {}, el("strong", {}, "PyMOP-only: "), String(c.counts.pymop_only)),
+        el("div", {}, el("strong", {}, "DyLin-only: "), String(c.counts.dylin_only)),
+      ));
+
+      const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
+      app.append(input);
+
+      const table = el("table", {id:"violations"},
+        el("thead", {}, el("tr", {},
+          el("th", {}, "File"),
+          el("th", {}, "Line"),
+          el("th", {}, "Flagged by"),
+          el("th", {}, "Specs"),
+          el("th", {}, "Details"),
+        )),
+        el("tbody")
+      );
+      const tbody = table.querySelector("tbody");
+
+      function draw(){
+        tbody.innerHTML = "";
+        const q = (input.value||"").toLowerCase();
+        c.violations.filter(v =>
+          v.file.toLowerCase().includes(q) ||
+          String(v.line).includes(q) ||
+          (v.specs||"").toLowerCase().includes(q) ||
+          v.flagged_by.toLowerCase().includes(q)
+        ).forEach(v => {
+          tbody.append(el("tr", {},
+            el("td", {class:"nowrap"}, v.file),
+            el("td", {}, String(v.line)),
+            el("td", {class:"nowrap"}, v.flagged_by),
+            el("td", {}, v.specs || ""),
+            el("td", {}, el("a", {href:`#/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open")),
+          ));
+        });
+      }
+      input.addEventListener("input", draw);
+      draw();
+      app.append(table);
+    }
+
+    function renderViolation(app, slug, sha, id){
+      const p = findProject(slug);
+      if (!p) return app.append(el("div", {}, "Project not found"));
+      const c = findCommit(p, sha);
+      if (!c) return app.append(el("div", {}, "Commit not found"));
+      const v = findViolation(c, id);
+      if (!v) return app.append(el("div", {}, "Violation not found"));
+
+      app.append(breadcrumb([
+        {href:"#/", text:"Home"},
+        {href:`#/p/${p.slug}`, text:p.full_name},
+        {href:`#/p/${p.slug}/c/${sha}`, text: sha},
+        {text: v.id}
+      ]));
+
+      app.append(el("div", {class:"card"},
+        el("div", {}, el("strong", {}, "Project: "), p.full_name),
+        el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
+        el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
+        el("div", {}, el("strong", {}, "Flagged by: "), `${v.flagged_by} (PyMOP=${v.pymop}, DyLin=${v.dylin})`),
+      ));
+
+      const bd = v.breakdown || [];
+      const table = el("table", {},
+        el("thead", {}, el("tr", {}, el("th", {}, "Spec"), el("th", {}, "PyMOP"), el("th", {}, "DyLin"))),
+        el("tbody", {}, ...(bd.length ? bd.map(b =>
+          el("tr", {}, el("td", {}, b.spec), el("td", {}, String(b.pymop)), el("td", {}, String(b.dylin)))
+        ) : [el("tr", {}, el("td", {colspan:"3"}, el("span", {class:"muted"}, "No spec entries found.")))]))
+      );
+      app.append(el("div", {class:"card"},
+        el("h3", {}, "Spec breakdown"),
+        table
+      ));
+    }
+  </script>
+</body>
+</html>

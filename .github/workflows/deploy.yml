@@ -21,8 +21,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
@@ -31,12 +30,13 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Generate site
+      - name: Generate data & SPA
         env:
           ORG_WIDE_TOKEN: ${{ secrets.ORG_WIDE_TOKEN }}
         run: |
           python scripts/collect.py
           test -f dist/index.html
+          test -f dist/data.json
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
