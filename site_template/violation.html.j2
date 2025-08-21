@@ -1,0 +1,44 @@
+{% set title = project.full_name ~ " / " ~ commit ~ " / " ~ violation._id %}
+{% set heading = "Violation " ~ violation._id %}
+{% extends "base.html.j2" %}
+{% block content %}
+<nav class="breadcrumb muted">
+  <a href="../../../../index.html">Home</a> /
+  <a href="../../index.html">{{ project.full_name }}</a> /
+  <a href="../../commits/{{ commit }}.html">{{ commit }}</a> /
+  {{ violation._id }}
+</nav>
+
+<div class="card">
+  <div><strong>Project:</strong> {{ project.full_name }}</div>
+  <div><strong>Commit:</strong> <code>{{ commit }}</code></div>
+  <div><strong>File:</strong> {{ violation.file }} : {{ violation.line }}</div>
+  <div><strong>Flagged by:</strong> {{ violation.flagged_by }} (PyMOP={{ violation.pymop }}, DyLin={{ violation.dylin }})</div>
+</div>
+
+<div class="card">
+  <h3>Spec breakdown</h3>
+  {% if breakdown and breakdown|length > 0 %}
+  <table>
+    <thead>
+      <tr>
+        <th>Spec</th>
+        <th>PyMOP count</th>
+        <th>DyLin count</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in breakdown %}
+      <tr>
+        <td>{{ b.spec }}</td>
+        <td>{{ b.pymop }}</td>
+        <td>{{ b.dylin }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="muted">No spec entries found.</div>
+  {% endif %}
+</div>
+{% endblock %}

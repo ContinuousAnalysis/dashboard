@@ -1,0 +1,7 @@
+{
+  "artifact_name_prefix": "continuous-analysis-results-history-",
+  "csv_name_candidates": [
+    "continuous_analysis_over_time_results.csv"
+  ],
+  "fail_if_missing_csv": true
+}
