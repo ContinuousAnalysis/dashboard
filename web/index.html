@@ -51,6 +51,8 @@
       return n;
     };
 
+    const fmtUTC = (epoch) => epoch ? new Date(epoch*1000).toUTCString() : "—";
+
     let DATA = null;
 
     async function load() {
@@ -118,9 +120,12 @@
       const grid = el("div", {class:"grid"});
       (ds.projects||[]).forEach(p => {
         const uniqueLocations = (p.commits||[]).reduce((a,c)=>a+(c.counts?.locations||0),0);
+        // Latest commit timestamp for quick glance
+        const lastTs = (p.commits||[]).reduce((m,c)=> Math.max(m, c.ts||0), 0);
         grid.append(el("div", {class:"card"},
           el("h3", {}, el("a", {href:`#/${kind}/p/${p.slug}`}, p.full_name)),
           el("div", {class:"muted"}, `Latest artifact: ${p.latest_artifact_name || "N/A"}`),
+          el("div", {class:"muted"}, `Latest commit time: ${fmtUTC(lastTs)}`),
           el("div", {style:"margin-top:8px;"},
             el("span", {class:"pill"}, `Commits: ${p.commits.length}`), " ",
             el("span", {class:"pill"}, `Unique locations: ${uniqueLocations}`)
@@ -174,10 +179,9 @@
           .filter(c => fromEpoch==null || (c.ts||0) >= fromEpoch)
           .filter(c => toEpoch==null || (c.ts||0) <= toEpoch)
           .forEach(c => {
-            const tsStr = c.ts ? new Date(c.ts*1000).toUTCString() : "—";
             tbody.append(el("tr", {},
               el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
-              el("td", {}, tsStr),
+              el("td", {}, fmtUTC(c.ts)),
               el("td", {}, String(c.counts.locations))
             ));
           });
@@ -200,13 +204,14 @@
         {text: sha}
       ]));
 
-      // --- Shows the commit time based on timestamp (your request) ---
+      // Header with timestamp
       app.append(el("div", {class:"card"},
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
-        el("div", {}, el("strong", {}, "Timestamp: "), c.ts ? new Date(c.ts*1000).toUTCString() : "—"),
+        el("div", {}, el("strong", {}, "Timestamp: "), fmtUTC(c.ts)),
         el("div", {}, el("strong", {}, "Unique locations: "), String(c.counts.locations))
       ));
 
+      // Violations list (clickable)
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
       app.append(input);
 
@@ -225,22 +230,25 @@
       function draw(){
         tbody.innerHTML = "";
         const q = (input.value||"").toLowerCase();
-        c.violations.filter(v =>
-          v.file.toLowerCase().includes(q) ||
-          String(v.line).includes(q) ||
-          (v.specs||"").toLowerCase().includes(q)
-        ).forEach(v => {
-          tbody.append(el("tr", {},
-            el("td", {class:"nowrap"}, v.file),
-            el("td", {}, String(v.line)),
-            el("td", {}, v.specs || ""),
-            el("td", {}, String(v.count || 0)),
-            el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open"))
-          ));
-        });
+        (c.violations || [])
+          .filter(v =>
+            v.file.toLowerCase().includes(q) ||
+            String(v.line).includes(q) ||
+            (v.specs||"").toLowerCase().includes(q)
+          )
+          .forEach(v => {
+            tbody.append(el("tr", {},
+              el("td", {class:"nowrap"}, v.file),
+              el("td", {}, String(v.line)),
+              el("td", {}, v.specs || "—"),
+              el("td", {}, String(v.count || 0)),
+              el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open"))
+            ));
+          });
       }
       input.addEventListener("input", draw);
       draw();
+      app.append(table);
     }
 
     function renderViolation(app, ds, kind, slug, sha, id){

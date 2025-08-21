@@ -165,7 +165,8 @@ def build_dataset(prefix: str) -> dict:
     Reads artifacts with given prefix.
     Expects CSV columns (lowercased after read):
       timestamp, current_commit_sha, new_violations
-    Aggregates violations by (file,line) with distinct spec list per location.
+    Aggregates violations by (file,line) and keeps distinct spec list per location.
+    NOTE: If new_violations is blank -> zero violations for that row.
     """
     projects_out = []
     total_commits = 0
@@ -197,18 +198,22 @@ def build_dataset(prefix: str) -> dict:
                 if not required.issubset(df.columns):
                     raise ValueError(f"CSV missing required columns; found {df.columns.tolist()}")
 
-                # Build commits map
+                # Build commits map strictly from new_violations
                 commits_map: Dict[str, dict] = {}
                 for _, r in df.iterrows():
                     sha = str(r["current_commit_sha"])
                     ts  = to_epoch(r["timestamp"])
-                    locs = parse_vloc_cell(r["new_violations"])
+                    new_v = r.get("new_violations", "")
+                    locs = parse_vloc_cell(new_v) if isinstance(new_v, str) and new_v.strip() else []
 
                     if sha not in commits_map:
                         commits_map[sha] = {"sha": sha, "ts": ts, "violations_raw": []}
                     if ts and (commits_map[sha]["ts"] or 0) < ts:
                         commits_map[sha]["ts"] = ts
-                    commits_map[sha]["violations_raw"].extend(locs)
+
+                    # Only append if there are new violations in this row
+                    if locs:
+                        commits_map[sha]["violations_raw"].extend(locs)
 
                 # Aggregate locations (distinct specs per file:line)
                 for sha, obj in commits_map.items():
@@ -222,14 +227,13 @@ def build_dataset(prefix: str) -> dict:
                     for (f, ln), rec in sorted(by_loc.items(), key=lambda t: (t[0][0], t[0][1])):
                         spec_list = sorted(rec["specs"])
                         specs = ";".join(spec_list)
-                        breakdown = [{"spec": s, "count": 1} for s in spec_list]  # each spec present once
                         violations.append({
                             "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
                             "file": f,
                             "line": int(ln),
                             "count": len(spec_list),   # number of distinct specs at that location
                             "specs": specs,
-                            "breakdown": breakdown
+                            "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
 
                     proj["commits"].append({
