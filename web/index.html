@@ -204,7 +204,7 @@
           projChart,
           el("div", {class:"muted"}, `Commits: ${valuesAll.length} • Max violations: ${maxValAll}`)
         );
-        const statsCard = el("div", {class:"card", style:"width:260px;"},
+        const statsCard = el("div", {class:"card", style:"width:260px; display:flex; flex-direction:column; justify-content:center;"},
           el("h3", {}, "Last 7 days"),
           el("div", {style:"display:flex; flex-direction:column; gap:12px;"},
             el("div", {},
@@ -219,6 +219,15 @@
         );
         row.append(chartCard, statsCard);
         app.append(row);
+
+        // Match stats card height to chart card height
+        function syncHeights(){
+          try {
+            statsCard.style.height = chartCard.offsetHeight + "px";
+          } catch {}
+        }
+        setTimeout(syncHeights, 0);
+        window.addEventListener("resize", () => setTimeout(syncHeights, 0));
       }
 
       // Table
