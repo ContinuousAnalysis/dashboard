@@ -255,66 +255,7 @@
         el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc))
       ));
       // ---------------------------------------------------------
-      // Past week stats chart (daily commits and violations for last 7 days)
-      const nowEpoch = Math.floor(Date.now() / 1000);
-      const daySecs = 24*60*60;
-      const startDayEpoch = Math.floor(nowEpoch / daySecs) * daySecs - 6*daySecs; // 6 days ago 00:00 UTC
-      const dayKeys = Array.from({length:7}, (_,i) => new Date((startDayEpoch + i*daySecs)*1000).toISOString().slice(0,10));
-      const commitsPerDay = Object.fromEntries(dayKeys.map(k => [k, 0]));
-      const violationsPerDay = Object.fromEntries(dayKeys.map(k => [k, 0]));
-      (p.commits||[]).forEach(cc => {
-        if (!cc.ts) return;
-        const dkey = new Date(cc.ts*1000).toISOString().slice(0,10);
-        if (dkey in commitsPerDay) {
-          commitsPerDay[dkey] += 1;
-          const v = (cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0;
-          violationsPerDay[dkey] += v;
-        }
-      });
-      const labels7 = dayKeys.map(k => k.slice(5)); // MM-DD
-      const commits7 = dayKeys.map(k => commitsPerDay[k]);
-      const violations7 = dayKeys.map(k => violationsPerDay[k]);
-      const maxY = Math.max(1, ...commits7, ...violations7);
-      const W7 = 640, H7 = 220, M7 = {t:16, r:16, b:36, l:40};
-      const innerW7 = W7 - M7.l - M7.r;
-      const innerH7 = H7 - M7.t - M7.b;
-      const stepX7 = dayKeys.length > 1 ? innerW7 / (dayKeys.length - 1) : 0;
-      const toX7 = i => M7.l + i * stepX7;
-      const toY7 = v => M7.t + (innerH7 - (v / maxY) * innerH7);
-      const buildPath = arr => arr.map((v,i) => `${i?"L":"M"} ${toX7(i)} ${toY7(v)}`).join(" ");
-      const pathCommits = buildPath(commits7);
-      const pathViol = buildPath(violations7);
-      const yticks7 = [0, 0.25, 0.5, 0.75, 1].map(f => ({ y: M7.t + (innerH7 - f * innerH7), v: Math.round(maxY * f) }));
-      const chartWrap = el("div", {class:"card"},
-        el("h3", {}, "Last 7 days (daily)"),
-        el("canvas", {id:"dailyChart", width:String(W7), height:String(H7)})
-      );
-      app.append(chartWrap);
-      // Defer to next tick so canvas is in DOM
-      setTimeout(() => {
-        const ctx = document.getElementById("dailyChart").getContext("2d");
-        new Chart(ctx, {
-          type: "line",
-          data: {
-            labels: labels7,
-            datasets: [
-              { label: "Violations", data: violations7, borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.1)", tension: 0.2 },
-              { label: "Commits", data: commits7, borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.1)", tension: 0.2 }
-            ]
-          },
-          options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            interaction: { mode: "index", intersect: false },
-            scales: {
-              x: { title: { display: true, text: "Day (UTC)" } },
-              y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: "Count" } }
-            },
-            plugins: { legend: { display: true } }
-          }
-        });
-      }, 0);
-
+      // --- SAFER TABLE (avoid crashes if violations is missing) ---
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
       app.append(input);
 
