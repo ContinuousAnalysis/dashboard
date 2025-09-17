@@ -205,14 +205,18 @@
         {text: sha}
       ]));
 
-      // Header with timestamp
+      // --- SAFER HEADER (avoid crashes if counts is missing) ---
+      const uniqLoc = (c.counts && typeof c.counts.locations === "number")
+        ? c.counts.locations
+        : 0; // or use "—" if you prefer
+
       app.append(el("div", {class:"card"},
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "Timestamp: "), fmtUTC(c.ts)),
-        el("div", {}, el("strong", {}, "Unique Violations: "), String(c.counts.locations))
+        el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc))
       ));
+      // ---------------------------------------------------------
 
-      // Violations list (clickable)
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
       app.append(input);
 
