@@ -148,6 +148,44 @@
       controls.append(el("span", {class:"muted"}, "From:"), from, el("span", {class:"muted"}, "To:"), to, search);
       app.append(controls);
 
+      // Violations trend for each commit (entire series)
+      const allCommits = (p.commits||[]);
+      const valuesAll = allCommits.map(cc => (cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0);
+      const labelsAll = allCommits.map(cc => cc.sha.slice(0,7));
+      if (valuesAll.length) {
+        const maxValAll = Math.max(1, ...valuesAll);
+        const Wp = 800, Hp = 220, Mp = {t:16, r:16, b:40, l:40};
+        const innerWp = Wp - Mp.l - Mp.r;
+        const innerHp = Hp - Mp.t - Mp.b;
+        const stepXp = valuesAll.length > 1 ? innerWp / (valuesAll.length - 1) : 0;
+        const toXp = i => Mp.l + i * stepXp;
+        const toYp = v => Mp.t + (innerHp - (v / maxValAll) * innerHp);
+        let dp = "";
+        valuesAll.forEach((v, i) => {
+          const x = toXp(i);
+          const y = toYp(v);
+          dp += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+        });
+        const yticksP = [0, 0.25, 0.5, 0.75, 1].map(f => ({ y: Mp.t + (innerHp - f * innerHp), v: Math.round(maxValAll * f) }));
+        // Sparse x ticks: first, quarter, half, three-quarter, last
+        const xi = valuesAll.length - 1;
+        const xtIdx = Array.from(new Set([0, Math.floor(xi*0.25), Math.floor(xi*0.5), Math.floor(xi*0.75), xi])).filter(i => i >= 0);
+        const projChart = el("svg", {width:String(Wp), height:String(Hp), viewBox:`0 0 ${Wp} ${Hp}`},
+          yticksP.map(t => el("line", {x1:String(Mp.l), y1:String(t.y), x2:String(Wp - Mp.r), y2:String(t.y), stroke:"#eef0f3"})),
+          el("line", {x1:String(Mp.l), y1:String(Mp.t), x2:String(Mp.l), y2:String(Hp - Mp.b), stroke:"#cbd5e1"}),
+          el("line", {x1:String(Mp.l), y1:String(Hp - Mp.b), x2:String(Wp - Mp.r), y2:String(Hp - Mp.b), stroke:"#cbd5e1"}),
+          yticksP.map(t => el("text", {x:String(Mp.l - 8), y:String(t.y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"end"}, String(t.v))),
+          xtIdx.map(i => el("text", {x:String(toXp(i)), y:String(Hp - Mp.b + 16), fill:"#6b7280", "font-size":"10", "text-anchor":"middle"}, labelsAll[i] || String(i+1))),
+          el("path", {d: dp, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
+          valuesAll.map((v,i) => el("circle", {cx:String(toXp(i)), cy:String(toYp(v)), r:"2.5", fill:"#2563eb"}, el("title", {}, `${labelsAll[i] || (i+1)}: ${v}`)))
+        );
+        app.append(el("div", {class:"card"},
+          el("h3", {}, "Violations trend per commit"),
+          projChart,
+          el("div", {class:"muted"}, `Commits: ${valuesAll.length} • Max violations: ${maxValAll}`)
+        ));
+      }
+
       // Table
       const table = el("table",
         {},
@@ -216,57 +254,6 @@
         el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc))
       ));
       // ---------------------------------------------------------
-
-      // Trend chart: last up to 20 commits' violation counts up to this commit
-      const idx = (p.commits||[]).findIndex(cc => cc.sha === sha);
-      const startIdx = Math.max(0, idx - 19);
-      const windowCommits = (p.commits||[]).slice(startIdx, idx + 1);
-      const values = windowCommits.map(cc => (cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0);
-      const labels = windowCommits.map(cc => cc.sha.slice(0,7));
-      const maxVal = Math.max(1, ...values);
-      const W = 640, H = 200, M = {t:16, r:16, b:36, l:36};
-      const innerW = W - M.l - M.r;
-      const innerH = H - M.t - M.b;
-      const stepX = values.length > 1 ? innerW / (values.length - 1) : 0;
-      const toX = i => M.l + i * stepX;
-      const toY = v => M.t + (innerH - (v / maxVal) * innerH);
-      let d = "";
-      values.forEach((v, i) => {
-        const x = toX(i);
-        const y = toY(v);
-        d += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
-      });
-      // y ticks (0, 25%, 50%, 75%, 100%)
-      const yticks = [0, 0.25, 0.5, 0.75, 1].map(f => ({
-        y: M.t + (innerH - f * innerH),
-        v: Math.round(maxVal * f)
-      }));
-      const chart = el("svg", {width:String(W), height:String(H), viewBox:`0 0 ${W} ${H}`},
-        // gridlines
-        yticks.map(t => el("line", {x1:String(M.l), y1:String(t.y), x2:String(W - M.r), y2:String(t.y), stroke:"#eef0f3"})),
-        // axes
-        el("line", {x1:String(M.l), y1:String(M.t), x2:String(M.l), y2:String(H - M.b), stroke:"#cbd5e1"}),
-        el("line", {x1:String(M.l), y1:String(H - M.b), x2:String(W - M.r), y2:String(H - M.b), stroke:"#cbd5e1"}),
-        // y tick labels
-        yticks.map(t => el("text", {x:String(M.l - 8), y:String(t.y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"end"}, String(t.v))),
-        // x tick labels (sparse: first, middle, last)
-        (values.length ? [0, Math.floor((values.length-1)/2), values.length-1] : []).map(i =>
-          el("text", {x:String(toX(i)), y:String(H - M.b + 16), fill:"#6b7280", "font-size":"10", "text-anchor":"middle"}, labels[i] || String(i+1))
-        ),
-        // line
-        el("path", {d, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
-        // points with titles for tooltips
-        values.map((v,i) => el("circle", {cx:String(toX(i)), cy:String(toY(v)), r:"3", fill:"#2563eb"},
-          el("title", {}, `${labels[i] || (i+1)}: ${v}`)
-        ))
-      );
-      const lastVal = values[values.length - 1] || 0;
-      app.append(el("div", {class:"card"},
-        el("h3", {}, "Violations trend (last up to 20 commits)"),
-        chart,
-        el("div", {class:"muted"}, `Current: ${lastVal} • Max: ${maxVal}`)
-      ));
-
       // Past week stats
       const nowEpoch = Math.floor(Date.now() / 1000);
       const weekAgo = nowEpoch - 7*24*60*60;
