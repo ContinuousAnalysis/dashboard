@@ -217,6 +217,46 @@
       ));
       // ---------------------------------------------------------
 
+      // Trend chart: last up to 20 commits' violation counts up to this commit
+      const idx = (p.commits||[]).findIndex(cc => cc.sha === sha);
+      const startIdx = Math.max(0, idx - 19);
+      const windowCommits = (p.commits||[]).slice(startIdx, idx + 1);
+      const values = windowCommits.map(cc => (cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0);
+      const maxVal = Math.max(1, ...values);
+      const W = 360, H = 90, P = 8;
+      const stepX = values.length > 1 ? (W - 2*P) / (values.length - 1) : 0;
+      const toY = v => H - P - (v / maxVal) * (H - 2*P);
+      let d = "";
+      values.forEach((v, i) => {
+        const x = P + i * stepX;
+        const y = toY(v);
+        d += (i === 0 ? `M ${x} ${y}` : ` L ${x} ${y}`);
+      });
+      const spark = el("svg", {width:String(W), height:String(H), viewBox:`0 0 ${W} ${H}`},
+        el("path", {d, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
+        el("line", {x1:String(P), y1:String(H-P), x2:String(W-P), y2:String(H-P), stroke:"#e5e7eb"})
+      );
+      const lastVal = values[values.length - 1] || 0;
+      app.append(el("div", {class:"card"},
+        el("h3", {}, "Violations trend (last up to 20 commits)"),
+        spark,
+        el("div", {class:"muted"}, `Current: ${lastVal} • Max: ${maxVal}`)
+      ));
+
+      // Past week stats
+      const nowEpoch = Math.floor(Date.now() / 1000);
+      const weekAgo = nowEpoch - 7*24*60*60;
+      const commitsWeek = (p.commits||[]).filter(cc => (cc.ts||0) >= weekAgo);
+      const weekCommitCount = commitsWeek.length;
+      const weekViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
+      app.append(el("div", {class:"card"},
+        el("h3", {}, "Last 7 days"),
+        el("div", {},
+          el("span", {class:"pill"}, `New commits: ${weekCommitCount}`), " ",
+          el("span", {class:"pill"}, `New violations: ${weekViolations}`)
+        )
+      ));
+
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
       app.append(input);
 
