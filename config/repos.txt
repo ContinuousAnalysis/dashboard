@@ -2,3 +2,4 @@ ContinuousAnalysis/requests
 ContinuousAnalysis/octodns-route53
 ContinuousAnalysis/pvl
 ContinuousAnalysis/pyro2
+ContinuousAnalysis/data-hub-ejp-xml-pipeline
