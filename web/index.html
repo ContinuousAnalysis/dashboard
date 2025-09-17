@@ -160,7 +160,7 @@
       const tbody = table.querySelector("tbody");
       app.append(table);
 
-      const commits = (p.commits||[]).slice().sort((a,b) => (a.ts||0) - (b.ts||0));
+      const commits = (p.commits||[]).slice().reverse();
 
       function parseLocalDT(val){
         if (!val) return null;
