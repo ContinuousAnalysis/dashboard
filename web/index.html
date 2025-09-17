@@ -190,11 +190,35 @@
           svgEl("path", {d: dp, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
           valuesAll.map((v,i) => svgEl("circle", {cx:String(toXp(i)), cy:String(toYp(v)), r:"2.5", fill:"#2563eb"}, svgEl("title", {}, `${labelsAll[i] || (i+1)}: ${v}`)))
         );
-        app.append(el("div", {class:"card"},
+        // Weekly stats (last 7 days)
+        const nowEpoch = Math.floor(Date.now() / 1000);
+        const weekAgo = nowEpoch - 7*24*60*60;
+        const commitsWeek = (allCommits||[]).filter(cc => (cc.ts||0) >= weekAgo);
+        const weekCommitCount = commitsWeek.length;
+        const weekViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
+
+        // Layout: chart (left) + status board (right)
+        const row = el("div", {style:"display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;"});
+        const chartCard = el("div", {class:"card", style:"flex:1; min-width:520px;"},
           el("h3", {}, "Violations trend per commit"),
           projChart,
           el("div", {class:"muted"}, `Commits: ${valuesAll.length} • Max violations: ${maxValAll}`)
-        ));
+        );
+        const statsCard = el("div", {class:"card", style:"width:260px;"},
+          el("h3", {}, "Last 7 days"),
+          el("div", {style:"display:flex; flex-direction:column; gap:12px;"},
+            el("div", {},
+              el("div", {class:"muted"}, "New commits"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekCommitCount))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "New violations"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekViolations))
+            )
+          )
+        );
+        row.append(chartCard, statsCard);
+        app.append(row);
       }
 
       // Table
