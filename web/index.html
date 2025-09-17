@@ -198,7 +198,7 @@
         const weekViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
 
         // Layout: chart (left) + status board (right)
-        const row = el("div", {style:"display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap;"});
+        const row = el("div", {style:"display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;"});
         const chartCard = el("div", {class:"card", style:"flex:1; min-width:520px;"},
           el("h3", {}, "Violations trend per commit"),
           projChart,
@@ -219,15 +219,6 @@
         );
         row.append(chartCard, statsCard);
         app.append(row);
-
-        // Match stats card height to chart card height
-        function syncHeights(){
-          try {
-            statsCard.style.height = chartCard.offsetHeight + "px";
-          } catch {}
-        }
-        setTimeout(syncHeights, 0);
-        window.addEventListener("resize", () => setTimeout(syncHeights, 0));
       }
 
       // Table
