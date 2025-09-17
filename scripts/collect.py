@@ -144,6 +144,7 @@ def to_epoch(ts_val) -> Optional[int]:
       - epoch seconds (10) or milliseconds (13)
       - ISO-like strings with/without 'Z'
       - 'YYYYMMDD_HHMM' (e.g. 20250821_1229)
+      - 'YYYYMMDD_HHMMSS' (e.g. 20250821_122901)
     """
     if ts_val is None:
         return None
@@ -155,10 +156,20 @@ def to_epoch(ts_val) -> Optional[int]:
     if s.isdigit() and len(s) in (10, 13):
         return int(int(s) / (1000 if len(s) == 13 else 1))
 
-    # 2) 'YYYYMMDD_HHMM'
-    m = re.match(r"^(\d{8})_(\d{4})$", s)
-    if m:
-        ymd, hm = m.groups()
+    # 2) 'YYYYMMDD_HHMMSS' or 'YYYYMMDD_HHMM'
+    m6 = re.match(r"^(\d{8})_(\d{6})$", s)
+    if m6:
+        ymd, hms = m6.groups()
+        y, mth, d = int(ymd[0:4]), int(ymd[4:6]), int(ymd[6:8])
+        hh, mm, ss = int(hms[0:2]), int(hms[2:4]), int(hms[4:6])
+        try:
+            dtm = dt.datetime(y, mth, d, hh, mm, ss, tzinfo=dt.timezone.utc)
+            return int(dtm.timestamp())
+        except Exception:
+            return None
+    m4 = re.match(r"^(\d{8})_(\d{4})$", s)
+    if m4:
+        ymd, hm = m4.groups()
         y, mth, d = int(ymd[0:4]), int(ymd[4:6]), int(ymd[6:8])
         hh, mm = int(hm[0:2]), int(hm[2:4])
         try:
