@@ -150,6 +150,7 @@
 
       // Table
       const table = el("table",
+        {},
         el("thead", {}, el("tr", {},
           el("th", {}, "Commit"),
           el("th", {}, "Timestamp (UTC)"),
@@ -160,7 +161,7 @@
       const tbody = table.querySelector("tbody");
       app.append(table);
 
-      const commits = (p.commits||[]).slice().reverse();
+      const commits = (p.commits||[]).slice();
 
       function parseLocalDT(val){
         if (!val) return null;
@@ -216,6 +217,7 @@
       app.append(input);
 
       const table = el("table",
+        {},
         el("thead", {}, el("tr", {},
           el("th", {}, "File"),
           el("th", {}, "Line"),
@@ -276,6 +278,7 @@
 
       const bd = v.breakdown || [];
       const table = el("table",
+        {},
         el("thead", {}, el("tr", {}, el("th", {}, "Spec"), el("th", {}, "Count"))),
         el("tbody", {}, ...(bd.length ? bd.map(b =>
           el("tr", {}, el("td", {}, b.spec), el("td", {}, String(b.count)))
