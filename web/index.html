@@ -25,6 +25,7 @@
     .tab.active { background:white; border-color: var(--active); color: var(--active); font-weight:600; }
     .controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha256-LAEQ8l5cCwX6yFT1s1m8QX7wKjIvmyuHJ0v+qK2qTn0=" crossorigin="anonymous"></script>
 </head>
 <body>
   <header>
@@ -284,22 +285,35 @@
       const pathCommits = buildPath(commits7);
       const pathViol = buildPath(violations7);
       const yticks7 = [0, 0.25, 0.5, 0.75, 1].map(f => ({ y: M7.t + (innerH7 - f * innerH7), v: Math.round(maxY * f) }));
-      const dailyChart = el("svg", {width:String(W7), height:String(H7), viewBox:`0 0 ${W7} ${H7}`},
-        yticks7.map(t => el("line", {x1:String(M7.l), y1:String(t.y), x2:String(W7 - M7.r), y2:String(t.y), stroke:"#eef0f3"})),
-        el("line", {x1:String(M7.l), y1:String(M7.t), x2:String(M7.l), y2:String(H7 - M7.b), stroke:"#cbd5e1"}),
-        el("line", {x1:String(M7.l), y1:String(H7 - M7.b), x2:String(W7 - M7.r), y2:String(H7 - M7.b), stroke:"#cbd5e1"}),
-        yticks7.map(t => el("text", {x:String(M7.l - 8), y:String(t.y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"end"}, String(t.v))),
-        labels7.map((lab,i) => el("text", {x:String(toX7(i)), y:String(H7 - M7.b + 16), fill:"#6b7280", "font-size":"10", "text-anchor":"middle"}, lab)),
-        el("path", {d:pathViol, fill:"none", stroke:"#ef4444", "stroke-width":"2"}),
-        el("path", {d:pathCommits, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
-        violations7.map((v,i) => el("circle", {cx:String(toX7(i)), cy:String(toY7(v)), r:"3", fill:"#ef4444"}, el("title", {}, `${labels7[i]} • violations: ${v}`))),
-        commits7.map((v,i) => el("circle", {cx:String(toX7(i)), cy:String(toY7(v)), r:"3", fill:"#2563eb"}, el("title", {}, `${labels7[i]} • commits: ${v}`)))
-      );
-      app.append(el("div", {class:"card"},
+      const chartWrap = el("div", {class:"card"},
         el("h3", {}, "Last 7 days (daily)"),
-        dailyChart,
-        el("div", {class:"muted"}, el("span", {class:"pill"}, "Blue: commits"), " ", el("span", {class:"pill"}, "Red: violations"))
-      ));
+        el("canvas", {id:"dailyChart", width:String(W7), height:String(H7)})
+      );
+      app.append(chartWrap);
+      // Defer to next tick so canvas is in DOM
+      setTimeout(() => {
+        const ctx = document.getElementById("dailyChart").getContext("2d");
+        new Chart(ctx, {
+          type: "line",
+          data: {
+            labels: labels7,
+            datasets: [
+              { label: "Violations", data: violations7, borderColor: "#ef4444", backgroundColor: "rgba(239,68,68,0.1)", tension: 0.2 },
+              { label: "Commits", data: commits7, borderColor: "#2563eb", backgroundColor: "rgba(37,99,235,0.1)", tension: 0.2 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: "index", intersect: false },
+            scales: {
+              x: { title: { display: true, text: "Day (UTC)" } },
+              y: { beginAtZero: true, ticks: { precision: 0 }, title: { display: true, text: "Count" } }
+            },
+            plugins: { legend: { display: true } }
+          }
+        });
+      }, 0);
 
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…"});
       app.append(input);
