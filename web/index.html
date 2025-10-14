@@ -211,17 +211,52 @@
           svgEl("path", {d: dp, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
           valuesAll.map((v,i) => svgEl("circle", {cx:String(toXp(i)), cy:String(toYp(v)), r:"2.5", fill:"#2563eb"}, svgEl("title", {}, `${labelsAll[i] || (i+1)}: ${v}`)))
         );
-        // Weekly stats (last 7 days)
-        const nowEpoch = Math.floor(Date.now() / 1000);
-        const weekAgo = nowEpoch - 7*24*60*60;
-        const commitsWeek = (allCommits||[]).filter(cc => (cc.ts||0) >= weekAgo);
-        const weekCommitCount = commitsWeek.length;
-        const weekViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
-
-        // History-specific: new violations after first commit
-        const newAfterFirst = (p.counts && typeof p.counts.new_locations_after_first === "number") 
-          ? p.counts.new_locations_after_first 
-          : 0;
+        // Stats calculation
+        let statsTitle, statsItems;
+        
+        if (kind === "hist") {
+          // For history runs: show total commits and violations across all time
+          const totalCommits = allCommits.length;
+          const totalViolations = allCommits.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
+          const newAfterFirst = (p.counts && typeof p.counts.new_locations_after_first === "number") 
+            ? p.counts.new_locations_after_first 
+            : 0;
+          
+          statsTitle = "History Stats";
+          statsItems = [
+            el("div", {},
+              el("div", {class:"muted"}, "Total commits"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(totalCommits))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "Total violations"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(totalViolations))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "New unique violations after first commit"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(newAfterFirst))
+            )
+          ];
+        } else {
+          // For monitoring runs: show last 7 days stats
+          const nowEpoch = Math.floor(Date.now() / 1000);
+          const weekAgo = nowEpoch - 7*24*60*60;
+          const commitsWeek = (allCommits||[]).filter(cc => (cc.ts||0) >= weekAgo);
+          const weekCommitCount = commitsWeek.length;
+          const weekViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
+          
+          statsTitle = "Last 7 days";
+          statsItems = [
+            el("div", {},
+              el("div", {class:"muted"}, "New commits"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekCommitCount))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "New violations"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekViolations))
+            )
+          ];
+        }
 
         // Layout: chart (left) + status board (right)
         const row = el("div", {style:"display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;"});
@@ -230,26 +265,6 @@
           projChart,
           el("div", {class:"muted"}, `Commits: ${valuesAll.length} • Max violations: ${maxValAll}`)
         );
-        
-        const statsTitle = kind === "hist" ? "History Stats" : "Last 7 days";
-        const statsItems = [
-          el("div", {},
-            el("div", {class:"muted"}, "New commits"),
-            el("div", {style:"font-size:28px; font-weight:700;"}, String(weekCommitCount))
-          ),
-          el("div", {},
-            el("div", {class:"muted"}, "New violations"),
-            el("div", {style:"font-size:28px; font-weight:700;"}, String(weekViolations))
-          )
-        ];
-        
-        // Add history-specific metric
-        if (kind === "hist") {
-          statsItems.push(el("div", {},
-            el("div", {class:"muted"}, "New unique violations after first commit"),
-            el("div", {style:"font-size:28px; font-weight:700;"}, String(newAfterFirst))
-          ));
-        }
         
         const statsCard = el("div", {class:"card", style:"width:360px; display:flex; flex-direction:column; justify-content:center;"},
           el("h3", {}, statsTitle),
