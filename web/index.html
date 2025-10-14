@@ -125,7 +125,7 @@
       const summaryParts = [
         el("strong", {}, "Total projects: "), String((ds.projects||[]).length),
         " • ", el("strong", {}, "Total commits: "), String(totals.commits),
-        " • ", el("strong", {}, "Total unique locations: "), String(totals.locations)
+        " • ", el("strong", {}, "Total unique violations: "), String(totals.locations)
       ];
       
       // Add history-specific total
@@ -143,7 +143,7 @@
         
         const pills = [
           el("span", {class:"pill"}, `Commits: ${p.commits.length}`),
-          el("span", {class:"pill"}, `Unique locations: ${uniqueLocations}`)
+          el("span", {class:"pill"}, `Unique violations: ${uniqueLocations}`)
         ];
         
         // Add history-specific pill
