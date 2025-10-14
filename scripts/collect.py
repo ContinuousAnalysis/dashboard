@@ -309,12 +309,12 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                     new_after_first = len(all_violation_ids - base_ids)
                     
                     # Debug logging
-                    # print(f"DEBUG {proj['full_name']}:")
-                    # print(f"  Total commits: {len(commits_sorted)}")
-                    # print(f"  First commit: {first['sha'][:8]} (ts: {first['ts']}, violations: {len(first.get('violations', []))})")
-                    # print(f"  Base IDs count: {len(base_ids)}")
-                    # print(f"  All violation IDs count: {len(all_violation_ids)}")
-                    # print(f"  New after first: {new_after_first}")
+                    print(f"DEBUG {proj['full_name']}:")
+                    print(f"  Total commits: {len(commits_sorted)}")
+                    print(f"  First commit: {first['sha'][:8]} (ts: {first['ts']}, violations: {len(first.get('violations', []))})")
+                    print(f"  Base IDs count: {len(base_ids)}")
+                    print(f"  All violation IDs count: {len(all_violation_ids)}")
+                    print(f"  New after first: {new_after_first}")
                     
                     # Attach per-project counts
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
