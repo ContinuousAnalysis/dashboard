@@ -12,5 +12,3 @@ ContinuousAnalysis/pyseto
 ContinuousAnalysis/anemoi-core
 ContinuousAnalysis/spectral_connectivity
 ContinuousAnalysis/Digital-Template-to-XBRL-Converter
-ContinuousAnalysis/gunicorn
-ContinuousAnalysis/Lang2SQL
