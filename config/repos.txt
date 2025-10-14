@@ -14,7 +14,3 @@ ContinuousAnalysis/spectral_connectivity
 ContinuousAnalysis/Digital-Template-to-XBRL-Converter
 ContinuousAnalysis/gunicorn
 ContinuousAnalysis/Lang2SQL
-Stephen0512/goth
-Stephen0512/simplemonitor
-Stephen0512/walberla
-Stephen0512/GeoIP2-python
