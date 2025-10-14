@@ -4,3 +4,5 @@ ContinuousAnalysis/pvl
 ContinuousAnalysis/pyro2
 ContinuousAnalysis/data-hub-ejp-xml-pipeline
 ContinuousAnalysis/pyais
+ContinuousAnalysis/github-mirror
+ContinuousAnalysis/joserfc
