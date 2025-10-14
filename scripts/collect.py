@@ -289,17 +289,13 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
 
                 # History-specific aggregate: unique locations that appear after the first commit
                 if compute_after_first and proj["commits"]:
-                    # Choose the earliest commit by timestamp; None timestamps sorted last
-                    commits_sorted = sorted(
-                        proj["commits"],
-                        key=lambda c: ((c.get("ts") is None), c.get("ts") or 0, c.get("sha"))
-                    )
-                    first = commits_sorted[0]
-                    base_ids = {v.get("id") for v in first.get("violations", [])}
+                    # The "first" commit is the first row in the CSV (already in chronological order)
+                    first_commit = proj["commits"][0]
+                    base_ids = {v.get("id") for v in first_commit.get("violations", [])}
                     
-                    # Collect ALL violation IDs from ALL commits (not just later ones)
+                    # Collect ALL violation IDs from ALL commits
                     all_violation_ids: set = set()
-                    for c in commits_sorted:
+                    for c in proj["commits"]:
                         for v in c.get("violations", []):
                             vid = v.get("id")
                             if vid:
@@ -310,8 +306,8 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                     
                     # Debug logging
                     print(f"DEBUG {proj['full_name']}:")
-                    print(f"  Total commits: {len(commits_sorted)}")
-                    print(f"  First commit: {first['sha'][:8]} (ts: {first['ts']}, violations: {len(first.get('violations', []))})")
+                    print(f"  Total commits: {len(proj['commits'])}")
+                    print(f"  First commit: {first_commit['sha'][:8]} (ts: {first_commit['ts']}, violations: {len(first_commit.get('violations', []))})")
                     print(f"  Base IDs count: {len(base_ids)}")
                     print(f"  All violation IDs count: {len(all_violation_ids)}")
                     print(f"  New after first: {new_after_first}")
