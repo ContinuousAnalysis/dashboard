@@ -252,9 +252,14 @@ def build_dataset(prefix: str) -> dict:
                         commits_map[sha]["violations_raw"].extend(locs)
 
                 # Aggregate to output format
+                EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
                     for v in obj["violations_raw"]:
+                        # Skip excluded file paths
+                        if EXCLUDED_PATH in v["file"]:
+                            continue
                         key = (v["file"], v["line"])
                         rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
                         rec["specs"].add(v["spec"])
