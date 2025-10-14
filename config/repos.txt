@@ -8,3 +8,5 @@ ContinuousAnalysis/github-mirror
 ContinuousAnalysis/joserfc
 ContinuousAnalysis/sdk-python
 ContinuousAnalysis/tilecloud
+ContinuousAnalysis/pyseto
+ContinuousAnalysis/anemoi-core
