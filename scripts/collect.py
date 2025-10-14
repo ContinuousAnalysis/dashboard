@@ -296,13 +296,26 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                     )
                     first = commits_sorted[0]
                     base_ids = {v.get("id") for v in first.get("violations", [])}
-                    later_ids: set = set()
-                    for c in commits_sorted[1:]:
+                    
+                    # Collect ALL violation IDs from ALL commits (not just later ones)
+                    all_violation_ids: set = set()
+                    for c in commits_sorted:
                         for v in c.get("violations", []):
                             vid = v.get("id")
                             if vid:
-                                later_ids.add(vid)
-                    new_after_first = len(later_ids - base_ids)
+                                all_violation_ids.add(vid)
+                    
+                    # New violations = violations that exist in the overall history but NOT in the first commit
+                    new_after_first = len(all_violation_ids - base_ids)
+                    
+                    # Debug logging
+                    # print(f"DEBUG {proj['full_name']}:")
+                    # print(f"  Total commits: {len(commits_sorted)}")
+                    # print(f"  First commit: {first['sha'][:8]} (ts: {first['ts']}, violations: {len(first.get('violations', []))})")
+                    # print(f"  Base IDs count: {len(base_ids)}")
+                    # print(f"  All violation IDs count: {len(all_violation_ids)}")
+                    # print(f"  New after first: {new_after_first}")
+                    
                     # Attach per-project counts
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
                     total_new_after_first += new_after_first
