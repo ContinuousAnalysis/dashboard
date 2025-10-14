@@ -10,3 +10,4 @@ ContinuousAnalysis/sdk-python
 ContinuousAnalysis/tilecloud
 ContinuousAnalysis/pyseto
 ContinuousAnalysis/anemoi-core
+ContinuousAnalysis/spectral_connectivity
