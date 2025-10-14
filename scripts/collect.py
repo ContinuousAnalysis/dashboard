@@ -197,7 +197,7 @@ def to_epoch(ts_val) -> Optional[int]:
         pass
     return None
 
-def build_dataset(prefix: str) -> dict:
+def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
     """
     Reads artifacts with given prefix.
     Requires CSV columns (lowercased after read):
@@ -206,6 +206,7 @@ def build_dataset(prefix: str) -> dict:
     Aggregates distinct specs per (file,line).
     """
     projects_out, total_commits, total_locations = [], 0, 0
+    total_new_after_first = 0
 
     for full in REPOS:
         owner, repo = full.split("/", 1)
@@ -286,16 +287,39 @@ def build_dataset(prefix: str) -> dict:
                 total_commits += len(commits_map)
                 total_locations += sum(c["counts"]["locations"] for c in proj["commits"])
 
+                # History-specific aggregate: unique locations that appear after the first commit
+                if compute_after_first and proj["commits"]:
+                    # Choose the earliest commit by timestamp; None timestamps sorted last
+                    commits_sorted = sorted(
+                        proj["commits"],
+                        key=lambda c: ((c.get("ts") is None), c.get("ts") or 0, c.get("sha"))
+                    )
+                    first = commits_sorted[0]
+                    base_ids = {v.get("id") for v in first.get("violations", [])}
+                    later_ids: set = set()
+                    for c in commits_sorted[1:]:
+                        for v in c.get("violations", []):
+                            vid = v.get("id")
+                            if vid:
+                                later_ids.add(vid)
+                    new_after_first = len(later_ids - base_ids)
+                    # Attach per-project counts
+                    proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
+                    total_new_after_first += new_after_first
+
         projects_out.append(proj)
 
-    return {"projects": projects_out, "totals": {"commits": total_commits, "locations": total_locations}}
+    totals = {"commits": total_commits, "locations": total_locations}
+    if compute_after_first:
+        totals["new_locations_after_first"] = total_new_after_first
+    return {"projects": projects_out, "totals": totals}
 
 def build():
     payload = {
         "generated_at": int(time.time()),
         "datasets": {
             "monitoring": build_dataset(MON_PREFIX),
-            "history":    build_dataset(HIS_PREFIX)
+            "history":    build_dataset(HIS_PREFIX, compute_after_first=True)
         }
     }
     (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

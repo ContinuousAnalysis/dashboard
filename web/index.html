@@ -122,25 +122,46 @@
     function renderHome(app, ds, kind){
       if (!ds) return app.append(el("div", {}, "No data"));
       const totals = ds.totals || {commits:0, locations:0};
-      app.append(el("div", {class:"card"},
+      const summaryParts = [
         el("strong", {}, "Total projects: "), String((ds.projects||[]).length),
         " • ", el("strong", {}, "Total commits: "), String(totals.commits),
-        " • ", el("strong", {}, "Total unique locations: "), String(totals.locations),
-      ));
+        " • ", el("strong", {}, "Total unique locations: "), String(totals.locations)
+      ];
+      
+      // Add history-specific total
+      if (kind === "hist" && typeof totals.new_locations_after_first === "number") {
+        summaryParts.push(" • ", el("strong", {}, "New unique violations after first commit: "), String(totals.new_locations_after_first));
+      }
+      
+      app.append(el("div", {class:"card"}, ...summaryParts));
 
       const grid = el("div", {class:"grid"});
       (ds.projects||[]).forEach(p => {
         const uniqueLocations = (p.commits||[]).reduce((a,c)=>a+(c.counts?.locations||0),0);
         // Latest commit timestamp for quick glance
         const lastTs = (p.commits||[]).reduce((m,c)=> Math.max(m, c.ts||0), 0);
+        
+        const pills = [
+          el("span", {class:"pill"}, `Commits: ${p.commits.length}`),
+          el("span", {class:"pill"}, `Unique locations: ${uniqueLocations}`)
+        ];
+        
+        // Add history-specific pill
+        if (kind === "hist" && typeof p.counts?.new_locations_after_first === "number") {
+          pills.push(el("span", {class:"pill"}, `New after first: ${p.counts.new_locations_after_first}`));
+        }
+        
+        const pillsContainer = el("div", {style:"margin-top:8px;"});
+        pills.forEach((pill, i) => {
+          if (i > 0) pillsContainer.append(" ");
+          pillsContainer.append(pill);
+        });
+        
         grid.append(el("div", {class:"card"},
           el("h3", {}, el("a", {href:`#/${kind}/p/${p.slug}`}, p.full_name)),
           el("div", {class:"muted"}, `Latest artifact: ${p.latest_artifact_name || "N/A"}`),
           el("div", {class:"muted"}, `Latest commit time: ${fmtUTC(lastTs)}`),
-          el("div", {style:"margin-top:8px;"},
-            el("span", {class:"pill"}, `Commits: ${p.commits.length}`), " ",
-            el("span", {class:"pill"}, `Unique locations: ${uniqueLocations}`)
-          )
+          pillsContainer
         ));
       });
       app.append(grid);
@@ -197,6 +218,11 @@
         const weekCommitCount = commitsWeek.length;
         const weekViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
 
+        // History-specific: new violations after first commit
+        const newAfterFirst = (p.counts && typeof p.counts.new_locations_after_first === "number") 
+          ? p.counts.new_locations_after_first 
+          : 0;
+
         // Layout: chart (left) + status board (right)
         const row = el("div", {style:"display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;"});
         const chartCard = el("div", {class:"card", style:"flex:1; min-width:520px;"},
@@ -204,18 +230,30 @@
           projChart,
           el("div", {class:"muted"}, `Commits: ${valuesAll.length} • Max violations: ${maxValAll}`)
         );
-        const statsCard = el("div", {class:"card", style:"width:260px; display:flex; flex-direction:column; justify-content:center;"},
-          el("h3", {}, "Last 7 days"),
-          el("div", {style:"display:flex; flex-direction:column; gap:12px;"},
-            el("div", {},
-              el("div", {class:"muted"}, "New commits"),
-              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekCommitCount))
-            ),
-            el("div", {},
-              el("div", {class:"muted"}, "New violations"),
-              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekViolations))
-            )
+        
+        const statsTitle = kind === "hist" ? "History Stats" : "Last 7 days";
+        const statsItems = [
+          el("div", {},
+            el("div", {class:"muted"}, "New commits"),
+            el("div", {style:"font-size:28px; font-weight:700;"}, String(weekCommitCount))
+          ),
+          el("div", {},
+            el("div", {class:"muted"}, "New violations"),
+            el("div", {style:"font-size:28px; font-weight:700;"}, String(weekViolations))
           )
+        ];
+        
+        // Add history-specific metric
+        if (kind === "hist") {
+          statsItems.push(el("div", {},
+            el("div", {class:"muted"}, "New unique violations after first commit"),
+            el("div", {style:"font-size:28px; font-weight:700;"}, String(newAfterFirst))
+          ));
+        }
+        
+        const statsCard = el("div", {class:"card", style:"width:260px; display:flex; flex-direction:column; justify-content:center;"},
+          el("h3", {}, statsTitle),
+          el("div", {style:"display:flex; flex-direction:column; gap:12px;"}, ...statsItems)
         );
         row.append(chartCard, statsCard);
         app.append(row);
