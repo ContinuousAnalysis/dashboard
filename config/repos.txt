@@ -4,6 +4,9 @@ ContinuousAnalysis/pvl
 ContinuousAnalysis/spectral_connectivity
 ContinuousAnalysis/data-hub-ejp-xml-pipeline
 ContinuousAnalysis/pyais
+ContinuousAnalysis/pbp
+Stephen0512/grass-addons
+Stephen0512/h2
 ContinuousAnalysis/github-mirror
 ContinuousAnalysis/joserfc
 ContinuousAnalysis/sdk-python
