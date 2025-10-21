@@ -233,7 +233,7 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
 
                 required = {"timestamp", "current_commit_sha", "new_violations"}
                 if not required.issubset(df.columns):
-                    raise ValueError(f"CSV missing required columns for {full}; found {df.columns.tolist()}")
+                    raise ValueError(f"CSV missing required columns for {full} ({art}); found {df.columns.tolist()}")
 
                 # Build commits map strictly from new_violations
                 commits_map: Dict[str, dict] = {}
