@@ -1,8 +1,8 @@
-name: Build & Deploy Pages (hourly)
+name: Build & Deploy Dashboard
 
 on:
   schedule:
-    - cron: "0 * * * *"   # every hour (UTC)
+    - cron: "0 0 * * *"
   workflow_dispatch:
 
 permissions:
