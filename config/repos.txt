@@ -1,6 +1,7 @@
 ContinuousAnalysis/octodns-route53
+ContinuousAnalysis/requests
 ContinuousAnalysis/pvl
-ContinuousAnalysis/pyro2
+ContinuousAnalysis/spectral_connectivity
 ContinuousAnalysis/data-hub-ejp-xml-pipeline
 ContinuousAnalysis/pyais
 ContinuousAnalysis/github-mirror
