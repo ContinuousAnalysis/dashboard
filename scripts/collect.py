@@ -243,14 +243,24 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                         continue
                     ts  = to_epoch(r.get("timestamp", ""))
                     new_v = str(r.get("new_violations", "") or "").strip()
+                    coverage = r.get("coverage", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
 
                     if sha not in commits_map:
-                        commits_map[sha] = {"sha": sha, "ts": ts, "violations_raw": []}
+                        commits_map[sha] = {"sha": sha, "ts": ts, "violations_raw": [], "coverage": None}
                     if ts and (commits_map[sha]["ts"] or 0) < ts:
                         commits_map[sha]["ts"] = ts
                     if locs:
                         commits_map[sha]["violations_raw"].extend(locs)
+                    
+                    # Store coverage if present
+                    if coverage and str(coverage).strip() and str(coverage).strip().lower() != "nan":
+                        try:
+                            # Try to parse as float first, then as is
+                            coverage_val = float(coverage)
+                            commits_map[sha]["coverage"] = coverage_val
+                        except (ValueError, TypeError):
+                            commits_map[sha]["coverage"] = str(coverage).strip()
 
                 # Aggregate to output format
                 EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
@@ -277,12 +287,18 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                             "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
 
-                    proj["commits"].append({
+                    commit_data = {
                         "sha": sha,
                         "ts": obj["ts"],
                         "counts": {"locations": len(violations)},
                         "violations": violations
-                    })
+                    }
+                    
+                    # Add coverage if available
+                    if obj.get("coverage") is not None:
+                        commit_data["coverage"] = obj["coverage"]
+                    
+                    proj["commits"].append(commit_data)
 
                 total_commits += len(commits_map)
                 total_locations += sum(c["counts"]["locations"] for c in proj["commits"])

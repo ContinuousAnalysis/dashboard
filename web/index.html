@@ -274,22 +274,28 @@
         app.append(row);
       }
 
-      // Table
+      // Check if any commits have coverage data
+      const commits = (p.commits||[]).slice().reverse();
+      const hasCoverage = commits.some(c => c.coverage !== undefined && c.coverage !== null);
+
+      // Table header
+      const tableHeaders = [
+        el("th", {}, "Commit"),
+        el("th", {}, "Timestamp (UTC)"),
+        el("th", {}, "Unique Violations")
+      ];
+      
+      if (hasCoverage) {
+        tableHeaders.push(el("th", {}, "Coverage"));
+      }
+
       const table = el("table",
         {},
-        el("thead", {}, el("tr", {},
-          el("th", {}, "Commit"),
-          el("th", {}, "Timestamp (UTC)"),
-          el("th", {}, "Unique Violations")
-        )),
+        el("thead", {}, el("tr", {}, ...tableHeaders)),
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
       app.append(table);
-
-      // Preserve the CSV order exactly (CSV may be newest-first). If current display
-      // appears reversed relative to the CSV, flip once here to match CSV.
-      const commits = (p.commits||[]).slice().reverse();
 
       function parseLocalDT(val){
         if (!val) return null;
@@ -308,11 +314,20 @@
           .filter(c => fromEpoch==null || (c.ts||0) >= fromEpoch)
           .filter(c => toEpoch==null || (c.ts||0) <= toEpoch)
           .forEach(c => {
-            tbody.append(el("tr", {},
+            const rowCells = [
               el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
               el("td", {}, fmtUTC(c.ts)),
               el("td", {}, String(c.counts.locations))
-            ));
+            ];
+            
+            if (hasCoverage) {
+              const coverageDisplay = (c.coverage !== undefined && c.coverage !== null) 
+                ? (typeof c.coverage === "number" ? `${c.coverage.toFixed(2)}%` : String(c.coverage))
+                : "—";
+              rowCells.push(el("td", {}, coverageDisplay));
+            }
+            
+            tbody.append(el("tr", {}, ...rowCells));
           });
       }
       from.addEventListener("change", draw);
@@ -338,11 +353,19 @@
         ? c.counts.locations
         : 0; // or use "—" if you prefer
 
-      app.append(el("div", {class:"card"},
+      const commitInfo = [
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "Timestamp: "), fmtUTC(c.ts)),
         el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc))
-      ));
+      ];
+      
+      // Add coverage if available
+      if (c.coverage !== undefined && c.coverage !== null) {
+        const coverageDisplay = typeof c.coverage === "number" ? `${c.coverage.toFixed(2)}%` : String(c.coverage);
+        commitInfo.push(el("div", {}, el("strong", {}, "Coverage: "), coverageDisplay));
+      }
+      
+      app.append(el("div", {class:"card"}, ...commitInfo));
       // ---------------------------------------------------------
       // --- SAFER TABLE (avoid crashes if violations is missing) ---
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
@@ -400,13 +423,21 @@
         {text: v.id}
       ]));
 
-      app.append(el("div", {class:"card"},
+      const violationInfo = [
         el("div", {}, el("strong", {}, "Project: "), p.full_name),
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
         el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
         el("div", {}, el("strong", {}, "Total (distinct specs): "), String(v.count || 0))
-      ));
+      ];
+      
+      // Add coverage if available for this commit
+      if (c.coverage !== undefined && c.coverage !== null) {
+        const coverageDisplay = typeof c.coverage === "number" ? `${c.coverage.toFixed(2)}%` : String(c.coverage);
+        violationInfo.push(el("div", {}, el("strong", {}, "Coverage: "), coverageDisplay));
+      }
+      
+      app.append(el("div", {class:"card"}, ...violationInfo));
 
       const bd = v.breakdown || [];
       const table = el("table",
