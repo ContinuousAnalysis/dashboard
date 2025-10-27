@@ -244,8 +244,8 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                     ts  = to_epoch(r.get("timestamp", ""))
                     new_v = str(r.get("new_violations", "") or "").strip()
                     coverage = r.get("coverage", "")
-                    commit_msg = r.get("commit_message", "")
-                    commit_ts = r.get("commit_timestamp", "")
+                    commit_msg = r.get("current_commit_message", "")
+                    commit_ts = r.get("current_commit_timestamp", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
 
                     if sha not in commits_map:
@@ -254,8 +254,8 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                             "ts": ts, 
                             "violations_raw": [], 
                             "coverage": None,
-                            "commit_message": None,
-                            "commit_timestamp": None
+                            "current_commit_message": None,
+                            "current_commit_timestamp": None
                         }
                     if ts and (commits_map[sha]["ts"] or 0) < ts:
                         commits_map[sha]["ts"] = ts
@@ -273,13 +273,13 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                     
                     # Store commit message if present
                     if commit_msg and str(commit_msg).strip() and str(commit_msg).strip().lower() != "nan":
-                        commits_map[sha]["commit_message"] = str(commit_msg).strip()
+                        commits_map[sha]["current_commit_message"] = str(commit_msg).strip()
                     
                     # Store commit timestamp if present
                     if commit_ts and str(commit_ts).strip() and str(commit_ts).strip().lower() != "nan":
                         commit_ts_epoch = to_epoch(commit_ts)
                         if commit_ts_epoch:
-                            commits_map[sha]["commit_timestamp"] = commit_ts_epoch
+                            commits_map[sha]["current_commit_timestamp"] = commit_ts_epoch
 
                 # Aggregate to output format
                 EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
@@ -308,6 +308,7 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
 
                     commit_data = {
                         "sha": sha,
+                        "current_commit_sha": sha,
                         "ts": obj["ts"],
                         "counts": {"locations": len(violations)},
                         "violations": violations
@@ -318,12 +319,12 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
                         commit_data["coverage"] = obj["coverage"]
                     
                     # Add commit message if available
-                    if obj.get("commit_message") is not None:
-                        commit_data["commit_message"] = obj["commit_message"]
+                    if obj.get("current_commit_message") is not None:
+                        commit_data["current_commit_message"] = obj["current_commit_message"]
                     
-                    # Add commit timestamp if available (this replaces the current ts for display)
-                    if obj.get("commit_timestamp") is not None:
-                        commit_data["commit_timestamp"] = obj["commit_timestamp"]
+                    # Add commit timestamp if available
+                    if obj.get("current_commit_timestamp") is not None:
+                        commit_data["current_commit_timestamp"] = obj["current_commit_timestamp"]
                     
                     proj["commits"].append(commit_data)
 

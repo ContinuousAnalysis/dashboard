@@ -348,17 +348,17 @@
             // Color: green for negative (good), red for positive (bad)
             const changeColor = change > 0 ? "#dc2626" : change < 0 ? "#16a34a" : "#6b7280";
             
-            // Use commit_timestamp if available, otherwise fall back to ts
-            const displayTimestamp = c.commit_timestamp || c.ts;
+            // Only use current_commit_timestamp, show "x" if not available
+            const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
             
             // Truncate commit message if too long
-            const commitMessage = c.commit_message || "";
+            const commitMessage = c.current_commit_message || "";
             const shortMessage = commitMessage.length > 100 ? commitMessage.substring(0, 97) + "..." : commitMessage;
             
             const rowCells = [
-              el("td", {style:"min-width:80px;"}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha.slice(0,7))),
+              el("td", {style:"min-width:80px;"}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.current_commit_sha || c.sha}`, class:"nowrap"}, (c.current_commit_sha || c.sha).slice(0,7))),
               el("td", {title: commitMessage, style:"max-width:600px;"}, shortMessage),
-              el("td", {style:"min-width:140px;"}, fmtET(displayTimestamp)),
+              el("td", {style:"min-width:140px;"}, displayTimestamp),
               el("td", {style:"min-width:120px; text-align:right;"}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
             ];
             
@@ -400,13 +400,13 @@
       ];
       
       // Add commit message if available
-      if (c.commit_message) {
-        commitInfo.push(el("div", {}, el("strong", {}, "Message: "), c.commit_message));
+      if (c.current_commit_message) {
+        commitInfo.push(el("div", {}, el("strong", {}, "Message: "), c.current_commit_message));
       }
       
-      // Use commit_timestamp if available, otherwise fall back to ts
-      const displayTimestamp = c.commit_timestamp || c.ts;
-      commitInfo.push(el("div", {}, el("strong", {}, "Timestamp: "), fmtET(displayTimestamp)));
+      // Add commit timestamp if available, show "x" if not available
+      const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
+      commitInfo.push(el("div", {}, el("strong", {}, "Timestamp: "), displayTimestamp));
       commitInfo.push(el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc)));
       
       // Add coverage if available
@@ -427,7 +427,7 @@
           el("th", {}, "File"),
           el("th", {}, "Line"),
           el("th", {}, "Specs"),
-          el("th", {}, "Total (distinct specs)"),
+          el("th", {}, "Total Occurrences"),
           el("th", {}, "Details")
         )),
         el("tbody")
@@ -478,7 +478,7 @@
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
         el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
-        el("div", {}, el("strong", {}, "Total (distinct specs): "), String(v.count || 0))
+        el("div", {}, el("strong", {}, "Total Occurrences: "), String(v.count || 0))
       ];
       
       // Add coverage if available for this commit
