@@ -309,15 +309,31 @@
         const fromEpoch = parseLocalDT(from.value);
         const toEpoch = parseLocalDT(to.value);
 
+        let prevLocations = 0;
         commits
           .filter(c => !q || c.sha.toLowerCase().includes(q))
           .filter(c => fromEpoch==null || (c.ts||0) >= fromEpoch)
           .filter(c => toEpoch==null || (c.ts||0) <= toEpoch)
-          .forEach(c => {
+          .forEach((c, idx, arr) => {
+            const currentLocations = c.counts?.locations || 0;
+            
+            // Calculate change from previous commit (in original commit order)
+            const commitIdxInOriginal = commits.indexOf(c);
+            const prevCommit = commitIdxInOriginal > 0 ? commits[commitIdxInOriginal - 1] : null;
+            const prevLocations = prevCommit?.counts?.locations || 0;
+            const change = currentLocations - prevLocations;
+            
+            const changeStr = prevCommit 
+              ? (change > 0 ? `(+${change})` : change < 0 ? `(${change})` : `(0)`)
+              : "";
+            
+            // Color: green for negative (good), red for positive (bad)
+            const changeColor = change > 0 ? "#dc2626" : change < 0 ? "#16a34a" : "#6b7280";
+            
             const rowCells = [
               el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
               el("td", {}, fmtUTC(c.ts)),
-              el("td", {}, String(c.counts.locations))
+              el("td", {}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
             ];
             
             if (hasCoverage) {
