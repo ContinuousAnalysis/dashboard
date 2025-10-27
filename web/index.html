@@ -63,6 +63,23 @@
     };
 
     const fmtUTC = (epoch) => epoch ? new Date(epoch*1000).toUTCString() : "—";
+    
+    const fmtET = (epoch) => {
+      if (!epoch) return "—";
+      const d = new Date(epoch * 1000);
+      // Convert to Eastern Time
+      const etString = d.toLocaleString("en-US", {
+        timeZone: "America/New_York",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: false
+      });
+      return etString;
+    };
 
     let DATA = null;
 
@@ -281,7 +298,8 @@
       // Table header
       const tableHeaders = [
         el("th", {}, "Commit"),
-        el("th", {}, "Timestamp (UTC)"),
+        el("th", {}, "Message"),
+        el("th", {}, "Timestamp (ET)"),
         el("th", {}, "Unique Violations")
       ];
       
@@ -330,9 +348,17 @@
             // Color: green for negative (good), red for positive (bad)
             const changeColor = change > 0 ? "#dc2626" : change < 0 ? "#16a34a" : "#6b7280";
             
+            // Use commit_timestamp if available, otherwise fall back to ts
+            const displayTimestamp = c.commit_timestamp || c.ts;
+            
+            // Truncate commit message if too long
+            const commitMessage = c.commit_message || "";
+            const shortMessage = commitMessage.length > 50 ? commitMessage.substring(0, 47) + "..." : commitMessage;
+            
             const rowCells = [
               el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
-              el("td", {}, fmtUTC(c.ts)),
+              el("td", {title: commitMessage}, shortMessage),
+              el("td", {}, fmtET(displayTimestamp)),
               el("td", {}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
             ];
             
@@ -370,10 +396,18 @@
         : 0; // or use "—" if you prefer
 
       const commitInfo = [
-        el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
-        el("div", {}, el("strong", {}, "Timestamp: "), fmtUTC(c.ts)),
-        el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc))
+        el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha))
       ];
+      
+      // Add commit message if available
+      if (c.commit_message) {
+        commitInfo.push(el("div", {}, el("strong", {}, "Message: "), c.commit_message));
+      }
+      
+      // Use commit_timestamp if available, otherwise fall back to ts
+      const displayTimestamp = c.commit_timestamp || c.ts;
+      commitInfo.push(el("div", {}, el("strong", {}, "Timestamp: "), fmtET(displayTimestamp)));
+      commitInfo.push(el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc)));
       
       // Add coverage if available
       if (c.coverage !== undefined && c.coverage !== null) {
