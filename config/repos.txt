@@ -1,5 +1,4 @@
 ContinuousAnalysis/octodns-route53
-ContinuousAnalysis/requests
 ContinuousAnalysis/pvl
 ContinuousAnalysis/spectral_connectivity
 ContinuousAnalysis/data-hub-ejp-xml-pipeline
