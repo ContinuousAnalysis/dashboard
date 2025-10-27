@@ -300,7 +300,7 @@
         el("th", {}, "Commit"),
         el("th", {}, "Message"),
         el("th", {}, "Timestamp (ET)"),
-        el("th", {style:"text-align:center;"}, "Unique Violations")
+        el("th", {}, "Unique Violations")
       ];
       
       if (hasCoverage) {
@@ -357,7 +357,7 @@
               el("td", {style:"min-width:80px;"}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.current_commit_sha || c.sha}`, class:"nowrap"}, (c.current_commit_sha || c.sha).slice(0,7))),
               el("td", {title: commitMessage, style:"max-width:600px;"}, shortMessage),
               el("td", {style:"min-width:140px;"}, displayTimestamp),
-              el("td", {style:"min-width:120px; text-align:center;"}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
+              el("td", {style:"min-width:120px; text-align:left;"}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
             ];
             
             if (hasCoverage) {
