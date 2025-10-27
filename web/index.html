@@ -353,13 +353,13 @@
             
             // Truncate commit message if too long
             const commitMessage = c.commit_message || "";
-            const shortMessage = commitMessage.length > 50 ? commitMessage.substring(0, 47) + "..." : commitMessage;
+            const shortMessage = commitMessage.length > 100 ? commitMessage.substring(0, 97) + "..." : commitMessage;
             
             const rowCells = [
-              el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha)),
-              el("td", {title: commitMessage}, shortMessage),
-              el("td", {}, fmtET(displayTimestamp)),
-              el("td", {}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
+              el("td", {style:"min-width:80px;"}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.sha}`, class:"nowrap"}, c.sha.slice(0,7))),
+              el("td", {title: commitMessage, style:"max-width:600px;"}, shortMessage),
+              el("td", {style:"min-width:140px;"}, fmtET(displayTimestamp)),
+              el("td", {style:"min-width:120px; text-align:right;"}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
             ];
             
             if (hasCoverage) {
