@@ -1,3 +1,9 @@
+ContinuousAnalysis/PDFMathTranslate
+ContinuousAnalysis/EpicStaff
+Stephen0512/xpra
+Stephen0512/phidata
+Stephen0512/builder-247
+Stephen0512/langchain
 ContinuousAnalysis/octodns-route53
 ContinuousAnalysis/pvl
 ContinuousAnalysis/spectral_connectivity
