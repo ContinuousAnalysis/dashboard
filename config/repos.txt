@@ -3,6 +3,10 @@ Stephen0512/xpra
 Stephen0512/phidata
 Stephen0512/builder-247
 Stephen0512/langchain
+ContinuousAnalysis/pants
+ContinuousAnalysis/anemoi-core
+ContinuousAnalysis/algorithmic-efficiency
+ContinuousAnalysis/QMCSoftware
 ContinuousAnalysis/octodns-route53
 ContinuousAnalysis/pvl
 ContinuousAnalysis/spectral_connectivity
@@ -16,7 +20,6 @@ ContinuousAnalysis/joserfc
 ContinuousAnalysis/sdk-python
 ContinuousAnalysis/tilecloud
 ContinuousAnalysis/pyseto
-ContinuousAnalysis/anemoi-core
 ContinuousAnalysis/Digital-Template-to-XBRL-Converter
 ContinuousAnalysis/gunicorn
 ContinuousAnalysis/Lang2SQL
