@@ -7,6 +7,7 @@ ContinuousAnalysis/pants
 ContinuousAnalysis/anemoi-core
 ContinuousAnalysis/algorithmic-efficiency
 ContinuousAnalysis/QMCSoftware
+ContinuousAnalysis/PDFMathTranslate
 ContinuousAnalysis/octodns-route53
 ContinuousAnalysis/pvl
 ContinuousAnalysis/spectral_connectivity
