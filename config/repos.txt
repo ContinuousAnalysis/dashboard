@@ -1,9 +1,9 @@
-ContinuousAnalysis/EpicStaff
 Stephen0512/xpra
+ContinuousAnalysis/pyais
+ContinuousAnalysis/EpicStaff
 Stephen0512/phidata
 Stephen0512/builder-247
 Stephen0512/langchain
-ContinuousAnalysis/pants
 ContinuousAnalysis/anemoi-core
 ContinuousAnalysis/algorithmic-efficiency
 ContinuousAnalysis/QMCSoftware
@@ -12,7 +12,6 @@ ContinuousAnalysis/octodns-route53
 ContinuousAnalysis/pvl
 ContinuousAnalysis/spectral_connectivity
 ContinuousAnalysis/data-hub-ejp-xml-pipeline
-ContinuousAnalysis/pyais
 ContinuousAnalysis/pbp
 Stephen0512/grass-addons
 Stephen0512/h2
@@ -24,8 +23,8 @@ ContinuousAnalysis/pyseto
 ContinuousAnalysis/Digital-Template-to-XBRL-Converter
 ContinuousAnalysis/gunicorn
 ContinuousAnalysis/Lang2SQL
-ContinuousAnalysis/spectral_connectivity
 Stephen0512/goth
 Stephen0512/simplemonitor
 Stephen0512/walberla
 Stephen0512/GeoIP2-python
+ContinuousAnalysis/pants
