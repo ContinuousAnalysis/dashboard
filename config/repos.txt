@@ -4,7 +4,6 @@ ContinuousAnalysis/EpicStaff
 Stephen0512/phidata
 Stephen0512/builder-247
 Stephen0512/langchain
-ContinuousAnalysis/anemoi-core
 ContinuousAnalysis/algorithmic-efficiency
 ContinuousAnalysis/QMCSoftware
 ContinuousAnalysis/PDFMathTranslate
