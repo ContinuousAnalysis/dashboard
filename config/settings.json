@@ -1,6 +1,6 @@
 {
   "monitoring_prefix": "continuous-analysis-filtered-results-",
-  "history_prefix": "continuous-analysis-filtered-history-results-",
+  "history_prefix": "continuous-analysis-history-filtered-results-",
   "csv_name_candidates": [
     "continuous_analysis_over_time_violations_filtered.csv"
   ],
