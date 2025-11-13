@@ -1,5 +1,6 @@
 ContinuousAnalysis/anemoi-core
 ContinuousAnalysis/pyais
+ContinuousAnalysis/PDFMathTranslate
 ContinuousAnalysis/olmo-cookbook
 ContinuousAnalysis/pySigma
 Stephen0512/aframe
