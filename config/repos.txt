@@ -1,9 +1,9 @@
 ContinuousAnalysis/anemoi-core
+ContinuousAnalysis/pyais
 ContinuousAnalysis/olmo-cookbook
 ContinuousAnalysis/pySigma
 Stephen0512/aframe
 Stephen0512/gpu4pyscf
-ContinuousAnalysis/pyais
 Stephen0512/phidata
 Stephen0512/builder-247
 ContinuousAnalysis/algorithmic-efficiency
