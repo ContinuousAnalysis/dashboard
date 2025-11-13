@@ -14,8 +14,15 @@ CONFIG = json.loads((ROOT / "config" / "settings.json").read_text())
 REPOS  = [l.strip() for l in (ROOT / "config" / "repos.txt").read_text().splitlines()
           if l.strip() and not l.strip().startswith("#")]
 
-MON_PREFIX = CONFIG["monitoring_prefix"]
-HIS_PREFIX = CONFIG["history_prefix"]
+def _ensure_prefix_list(value) -> List[str]:
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, list):
+        return [str(v) for v in value if v]
+    raise TypeError(f"Expected string or list of strings for prefix configuration, got {type(value).__name__}")
+
+MON_PREFIXES = _ensure_prefix_list(CONFIG["monitoring_prefix"])
+HIS_PREFIXES = _ensure_prefix_list(CONFIG["history_prefix"])
 CSV_CANDS  = CONFIG["csv_name_candidates"]
 FAIL_IF_MISSING_CSV = CONFIG.get("fail_if_missing_csv", True)
 
@@ -197,9 +204,9 @@ def to_epoch(ts_val) -> Optional[int]:
         pass
     return None
 
-def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
+def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dict:
     """
-    Reads artifacts with given prefix.
+    Reads artifacts with the first available prefix (tries each in order).
     Requires CSV columns (lowercased after read):
       timestamp, current_commit_sha, new_violations
     Uses ONLY 'new_violations' (blank => zero violations).
@@ -210,7 +217,11 @@ def build_dataset(prefix: str, compute_after_first: bool = False) -> dict:
 
     for full in REPOS:
         owner, repo = full.split("/", 1)
-        art = latest_with_prefix(owner, repo, prefix)
+        art = None
+        for prefix in prefixes:
+            art = latest_with_prefix(owner, repo, prefix)
+            if art:
+                break
 
         proj = {
             "slug": full.replace("/","-").lower(),
@@ -371,8 +382,8 @@ def build():
     payload = {
         "generated_at": int(time.time()),
         "datasets": {
-            "monitoring": build_dataset(MON_PREFIX),
-            "history":    build_dataset(HIS_PREFIX, compute_after_first=True)
+            "monitoring": build_dataset(MON_PREFIXES),
+            "history":    build_dataset(HIS_PREFIXES, compute_after_first=True)
         }
     }
     (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
