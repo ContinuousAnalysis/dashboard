@@ -1,1 +1,5 @@
 ContinuousAnalysis/anemoi-core
+ContinuousAnalysis/olmo-cookbook
+ContinuousAnalysis/pySigma
+Stephen0512/aframe
+Stephen0512/gpu4pyscf
