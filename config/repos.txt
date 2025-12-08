@@ -13,3 +13,13 @@ Zhuohang-Shen/aframe
 ContinuousAnalysis/pySigma
 Zhuohang-Shen/gpu4pyscf
 Zhuohang-Shen/dyana
+ContinuousAnalysis/Lang2SQL
+ContinuousAnalysis/sdk-python
+Zhuohang-Shen/fedoo
+Zhuohang-Shen/gorilla
+Zhuohang-Shen/observers
+ContinuousAnalysis/sparklespray
+Zhuohang-Shen/Hamster-code-generator
+Zhuohang-Shen/pyrofork
+Zhuohang-Shen/marshmallow
+Zhuohang-Shen/prefect-proxy
