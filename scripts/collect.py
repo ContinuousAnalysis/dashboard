@@ -382,8 +382,8 @@ def build():
     payload = {
         "generated_at": int(time.time()),
         "datasets": {
-            "monitoring": build_dataset(MON_PREFIXES),
-            "history":    build_dataset(HIS_PREFIXES, compute_after_first=True)
+            "monitoring": build_dataset(MON_PREFIXES)
+            # "history":    build_dataset(HIS_PREFIXES, compute_after_first=True)  # Disabled for now
         }
     }
     (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
