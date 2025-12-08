@@ -21,5 +21,4 @@ Zhuohang-Shen/observers
 ContinuousAnalysis/sparklespray
 Zhuohang-Shen/Hamster-code-generator
 Zhuohang-Shen/pyrofork
-Zhuohang-Shen/marshmallow
 Zhuohang-Shen/prefect-proxy
