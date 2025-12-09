@@ -259,6 +259,23 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     commit_msg = r.get("current_commit_message", "")
                     commit_ts = r.get("current_commit_timestamp", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
+                    
+                    # Read violation counts from CSV
+                    num_current = r.get("num_current_violations", "")
+                    num_new = r.get("num_new_violations", "")
+                    num_old = r.get("num_old_violations", "")
+                    
+                    def parse_int_or_zero(val):
+                        if val is None or str(val).strip() == "" or str(val).strip().lower() == "nan":
+                            return 0
+                        try:
+                            return int(float(str(val).strip()))
+                        except (ValueError, TypeError):
+                            return 0
+                    
+                    num_current_int = parse_int_or_zero(num_current)
+                    num_new_int = parse_int_or_zero(num_new)
+                    num_old_int = parse_int_or_zero(num_old)
 
                     if sha not in commits_map:
                         commits_map[sha] = {
@@ -267,12 +284,20 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                             "violations_raw": [], 
                             "coverage": None,
                             "current_commit_message": None,
-                            "current_commit_timestamp": None
+                            "current_commit_timestamp": None,
+                            "num_current_violations": 0,
+                            "num_new_violations": 0,
+                            "num_old_violations": 0
                         }
                     if ts and (commits_map[sha]["ts"] or 0) < ts:
                         commits_map[sha]["ts"] = ts
                     if locs:
                         commits_map[sha]["violations_raw"].extend(locs)
+                    
+                    # Store violation counts (use latest values if multiple rows for same SHA)
+                    commits_map[sha]["num_current_violations"] = num_current_int
+                    commits_map[sha]["num_new_violations"] = num_new_int
+                    commits_map[sha]["num_old_violations"] = num_old_int
                     
                     # Store coverage if present
                     if coverage and str(coverage).strip() and str(coverage).strip().lower() != "nan":
@@ -323,7 +348,10 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                         "current_commit_sha": sha,
                         "ts": obj["ts"],
                         "counts": {"locations": len(violations)},
-                        "violations": violations
+                        "violations": violations,
+                        "num_current_violations": obj.get("num_current_violations", 0),
+                        "num_new_violations": obj.get("num_new_violations", 0),
+                        "num_old_violations": obj.get("num_old_violations", 0)
                     }
                     
                     # Add coverage if available
@@ -429,6 +457,23 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     commit_msg = r.get("current_commit_message", "")
                     commit_ts = r.get("current_commit_timestamp", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
+                    
+                    # Read violation counts from CSV
+                    num_current = r.get("num_current_violations", "")
+                    num_new = r.get("num_new_violations", "")
+                    num_old = r.get("num_old_violations", "")
+                    
+                    def parse_int_or_zero(val):
+                        if val is None or str(val).strip() == "" or str(val).strip().lower() == "nan":
+                            return 0
+                        try:
+                            return int(float(str(val).strip()))
+                        except (ValueError, TypeError):
+                            return 0
+                    
+                    num_current_int = parse_int_or_zero(num_current)
+                    num_new_int = parse_int_or_zero(num_new)
+                    num_old_int = parse_int_or_zero(num_old)
 
                     if sha not in commits_map:
                         commits_map[sha] = {
@@ -437,12 +482,20 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             "violations_raw": [], 
                             "coverage": None,
                             "current_commit_message": None,
-                            "current_commit_timestamp": None
+                            "current_commit_timestamp": None,
+                            "num_current_violations": 0,
+                            "num_new_violations": 0,
+                            "num_old_violations": 0
                         }
                     if ts and (commits_map[sha]["ts"] or 0) < ts:
                         commits_map[sha]["ts"] = ts
                     if locs:
                         commits_map[sha]["violations_raw"].extend(locs)
+                    
+                    # Store violation counts (use latest values if multiple rows for same SHA)
+                    commits_map[sha]["num_current_violations"] = num_current_int
+                    commits_map[sha]["num_new_violations"] = num_new_int
+                    commits_map[sha]["num_old_violations"] = num_old_int
                     
                     # Store coverage if present
                     if coverage and str(coverage).strip() and str(coverage).strip().lower() != "nan":
@@ -493,7 +546,10 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                         "current_commit_sha": sha,
                         "ts": obj["ts"],
                         "counts": {"locations": len(violations)},
-                        "violations": violations
+                        "violations": violations,
+                        "num_current_violations": obj.get("num_current_violations", 0),
+                        "num_new_violations": obj.get("num_new_violations", 0),
+                        "num_old_violations": obj.get("num_old_violations", 0)
                     }
                     
                     # Add coverage if available

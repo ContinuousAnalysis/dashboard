@@ -332,19 +332,25 @@
           .filter(c => fromEpoch==null || (c.ts||0) >= fromEpoch)
           .filter(c => toEpoch==null || (c.ts||0) <= toEpoch)
           .forEach((c, idx, filteredCommits) => {
-            const currentLocations = c.counts?.locations || 0;
+            // Get violation counts from CSV data
+            const numCurrent = c.num_current_violations ?? 0;
+            const numNew = c.num_new_violations ?? 0;
+            const numOld = c.num_old_violations ?? 0;
             
-            // Calculate change from older commit for violations delta
-            const nextCommit = idx < filteredCommits.length - 1 ? filteredCommits[idx + 1] : null;
-            const nextLocations = nextCommit?.counts?.locations || 0;
-            const change = currentLocations - nextLocations;
+            // Build violation display: grey current, red delta +, green delta -
+            const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
             
-            const changeStr = nextCommit 
-              ? (change > 0 ? `(+${change})` : change < 0 ? `(${change})` : `(0)`)
-              : "";
-            
-            // Color: green for negative (good), red for positive (bad)
-            const changeColor = change > 0 ? "#dc2626" : change < 0 ? "#16a34a" : "#6b7280";
+            // Show deltas only if non-zero, or if both are zero show grey zero
+            if (numNew > 0 && numOld > 0) {
+              violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+              violationParts.push(el("span", {style:"color:#16a34a; margin-left:4px;"}, `(-${numOld})`));
+            } else if (numNew > 0) {
+              violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+            } else if (numOld > 0) {
+              violationParts.push(el("span", {style:"color:#16a34a; margin-left:8px;"}, `(-${numOld})`));
+            } else if (numNew === 0 && numOld === 0) {
+              violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
+            }
             
             // Only use current_commit_timestamp, show "x" if not available
             const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
@@ -357,7 +363,7 @@
               el("td", {style:"min-width:80px;"}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.current_commit_sha || c.sha}`, class:"nowrap"}, (c.current_commit_sha || c.sha).slice(0,7))),
               el("td", {title: commitMessage, style:"max-width:600px;"}, shortMessage),
               el("td", {style:"min-width:140px;"}, displayTimestamp),
-              el("td", {style:"min-width:120px; text-align:left;"}, String(currentLocations), changeStr ? el("span", {style:`color:${changeColor}; margin-left:8px;`}, changeStr) : "")
+              el("td", {style:"min-width:120px; text-align:left;"}, ...violationParts)
             ];
             
             if (hasCoverage) {
@@ -389,9 +395,9 @@
       ]));
 
       // --- SAFER HEADER (avoid crashes if counts is missing) ---
-      const uniqLoc = (c.counts && typeof c.counts.locations === "number")
-        ? c.counts.locations
-        : 0; // or use "—" if you prefer
+      const numCurrent = c.num_current_violations ?? 0;
+      const numNew = c.num_new_violations ?? 0;
+      const numOld = c.num_old_violations ?? 0;
 
       const commitInfo = [
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha))
@@ -404,7 +410,20 @@
       // Add commit timestamp - always show, even if missing
       const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
       commitInfo.push(el("div", {}, el("strong", {}, "Timestamp: "), displayTimestamp));
-      commitInfo.push(el("div", {}, el("strong", {}, "Unique Violations: "), String(uniqLoc)));
+      
+      // Build violation display: grey current, red delta +, green delta -
+      const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
+      if (numNew > 0 && numOld > 0) {
+        violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+        violationParts.push(el("span", {style:"color:#16a34a; margin-left:4px;"}, `(-${numOld})`));
+      } else if (numNew > 0) {
+        violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+      } else if (numOld > 0) {
+        violationParts.push(el("span", {style:"color:#16a34a; margin-left:8px;"}, `(-${numOld})`));
+      } else if (numNew === 0 && numOld === 0) {
+        violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
+      }
+      commitInfo.push(el("div", {}, el("strong", {}, "Unique Violations: "), ...violationParts));
       
       // Add coverage if available
       if (c.coverage !== undefined && c.coverage !== null) {
