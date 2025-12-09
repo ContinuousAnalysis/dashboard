@@ -23,7 +23,6 @@ Zhuohang-Shen/Hamster-code-generator
 Zhuohang-Shen/pyrofork
 Zhuohang-Shen/prefect-proxy
 Zhuohang-Shen/mapproxy
-Zhuohang-Shen/datamax
 Zhuohang-Shen/sc-file
 Zhuohang-Shen/rnet
 Zhuohang-Shen/posthog-python
