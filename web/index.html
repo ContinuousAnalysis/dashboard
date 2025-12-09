@@ -332,14 +332,15 @@
           .filter(c => fromEpoch==null || (c.ts||0) >= fromEpoch)
           .filter(c => toEpoch==null || (c.ts||0) <= toEpoch)
           .forEach((c, idx, filteredCommits) => {
+
             // Get violation counts from CSV data
             const numCurrent = c.num_current_violations ?? 0;
             const numNew = c.num_new_violations ?? 0;
             const numOld = c.num_old_violations ?? 0;
-            
+
             // Build violation display: grey current, red delta +, green delta -
             const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
-            
+
             // Show deltas only if non-zero, or if both are zero show grey zero
             if (numNew > 0 && numOld > 0) {
               violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
@@ -351,7 +352,7 @@
             } else if (numNew === 0 && numOld === 0) {
               violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
             }
-            
+
             // Only use current_commit_timestamp, show "x" if not available
             const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
             
