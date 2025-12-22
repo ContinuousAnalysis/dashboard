@@ -419,13 +419,17 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
     projects_out, total_commits, total_locations = [], 0, 0
     total_new_after_first = 0
 
-    for full in REPOS:
-        owner, repo = full.split("/", 1)
-        repo = repo.strip()  # Remove any trailing spaces
-        
-        # CSV filename is the repo name
-        csv_path = DATA / f"{repo}.csv"
-        
+    # Track repo names that are explicitly listed in repos.txt
+    configured_repo_names = set()
+
+    def process_one_project(full: str, csv_path: pathlib.Path):
+        """
+        Process a single CSV file into the unified project/commit structure.
+        Mutates projects_out / total_* counters in the outer scope.
+        """
+        nonlocal total_commits, total_locations, total_new_after_first
+
+        # full may be either "owner/repo" (from repos.txt) or just a repo/file name
         proj = {
             "slug": full.replace("/","-").lower(),
             "full_name": full,
@@ -443,7 +447,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                 if not required.issubset(df.columns):
                     print(f"WARNING: CSV missing required columns for {full} ({csv_path}); found {df.columns.tolist()}")
                     projects_out.append(proj)
-                    continue
+                    return
 
                 # Build commits map strictly from new_violations
                 commits_map: Dict[str, dict] = {}
@@ -457,12 +461,12 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     commit_msg = r.get("current_commit_message", "")
                     commit_ts = r.get("current_commit_timestamp", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
-                    
+
                     # Read violation counts from CSV
                     num_current = r.get("num_current_violations", "")
                     num_new = r.get("num_new_violations", "")
                     num_old = r.get("num_old_violations", "")
-                    
+
                     def parse_int_or_zero(val):
                         if val is None or str(val).strip() == "" or str(val).strip().lower() == "nan":
                             return 0
@@ -470,16 +474,16 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             return int(float(str(val).strip()))
                         except (ValueError, TypeError):
                             return 0
-                    
+
                     num_current_int = parse_int_or_zero(num_current)
                     num_new_int = parse_int_or_zero(num_new)
                     num_old_int = parse_int_or_zero(num_old)
 
                     if sha not in commits_map:
                         commits_map[sha] = {
-                            "sha": sha, 
-                            "ts": ts, 
-                            "violations_raw": [], 
+                            "sha": sha,
+                            "ts": ts,
+                            "violations_raw": [],
                             "coverage": None,
                             "current_commit_message": None,
                             "current_commit_timestamp": None,
@@ -491,12 +495,12 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                         commits_map[sha]["ts"] = ts
                     if locs:
                         commits_map[sha]["violations_raw"].extend(locs)
-                    
+
                     # Store violation counts (use latest values if multiple rows for same SHA)
                     commits_map[sha]["num_current_violations"] = num_current_int
                     commits_map[sha]["num_new_violations"] = num_new_int
                     commits_map[sha]["num_old_violations"] = num_old_int
-                    
+
                     # Store coverage if present
                     if coverage and str(coverage).strip() and str(coverage).strip().lower() != "nan":
                         try:
@@ -505,11 +509,11 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             commits_map[sha]["coverage"] = coverage_val
                         except (ValueError, TypeError):
                             commits_map[sha]["coverage"] = str(coverage).strip()
-                    
+
                     # Store commit message if present
                     if commit_msg and str(commit_msg).strip() and str(commit_msg).strip().lower() != "nan":
                         commits_map[sha]["current_commit_message"] = str(commit_msg).strip()
-                    
+
                     # Store commit timestamp if present
                     if commit_ts and str(commit_ts).strip() and str(commit_ts).strip().lower() != "nan":
                         commit_ts_epoch = to_epoch(commit_ts)
@@ -536,7 +540,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
                             "file": f,
                             "line": int(ln),
-                            "count": len(spec_list), 
+                            "count": len(spec_list),
                             "specs": ";".join(spec_list),
                             "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
@@ -551,19 +555,19 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                         "num_new_violations": obj.get("num_new_violations", 0),
                         "num_old_violations": obj.get("num_old_violations", 0)
                     }
-                    
+
                     # Add coverage if available
                     if obj.get("coverage") is not None:
                         commit_data["coverage"] = obj["coverage"]
-                    
+
                     # Add commit message if available
                     if obj.get("current_commit_message") is not None:
                         commit_data["current_commit_message"] = obj["current_commit_message"]
-                    
+
                     # Add commit timestamp if available
                     if obj.get("current_commit_timestamp") is not None:
                         commit_data["current_commit_timestamp"] = obj["current_commit_timestamp"]
-                    
+
                     proj["commits"].append(commit_data)
 
                 total_commits += len(commits_map)
@@ -574,7 +578,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     # The "first" commit is the first row in the CSV (already in chronological order)
                     first_commit = proj["commits"][0]
                     base_ids = {v.get("id") for v in first_commit.get("violations", [])}
-                    
+
                     # Collect ALL violation IDs from ALL commits
                     all_violation_ids: set = set()
                     for c in proj["commits"]:
@@ -582,10 +586,10 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             vid = v.get("id")
                             if vid:
                                 all_violation_ids.add(vid)
-                    
+
                     # New violations = violations that exist in the overall history but NOT in the first commit
                     new_after_first = len(all_violation_ids - base_ids)
-                    
+
                     # Debug logging
                     print(f"DEBUG {proj['full_name']}:")
                     print(f"  Total commits: {len(proj['commits'])}")
@@ -593,16 +597,39 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     print(f"  Base IDs count: {len(base_ids)}")
                     print(f"  All violation IDs count: {len(all_violation_ids)}")
                     print(f"  New after first: {new_after_first}")
-                    
+
                     # Attach per-project counts
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
                     total_new_after_first += new_after_first
             except Exception as e:
                 print(f"ERROR: Failed to process {csv_path} for {full}: {e}")
+            # Only append the project if we actually found a CSV file.
+            projects_out.append(proj)
         else:
+            # If there's no CSV for this project, just warn and skip it entirely
+            # so it does not appear in the history tab.
             print(f"WARNING: CSV file not found for {full}: {csv_path}")
 
-        projects_out.append(proj)
+    # First, process all projects that are explicitly configured in repos.txt
+    for full in REPOS:
+        owner, repo = full.split("/", 1)
+        repo = repo.strip()  # Remove any trailing spaces
+        configured_repo_names.add(repo)
+
+        # CSV filename is the repo name
+        csv_path = DATA / f"{repo}.csv"
+        process_one_project(full, csv_path)
+
+    # Then, add any remaining CSV files in the data directory as standalone projects
+    # (these may not appear in repos.txt). The file stem becomes the repo name.
+    for csv_path in DATA.glob("*.csv"):
+        repo_name = csv_path.stem
+        if repo_name in configured_repo_names:
+            continue  # already processed via repos.txt mapping
+
+        # Use the filename as the "repo" identifier for history runs not in repos.txt
+        full = repo_name
+        process_one_project(full, csv_path)
 
     totals = {"commits": total_commits, "locations": total_locations}
     if compute_after_first:
