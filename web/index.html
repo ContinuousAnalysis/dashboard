@@ -302,9 +302,9 @@
         el("th", {}, "Timestamp (ET)")
       ];
       
-      // Add Python Files Changed column for history runs
+      // Add Files Changed column for history runs
       if (kind === "hist") {
-        tableHeaders.push(el("th", {}, "Python Files Changed"));
+        tableHeaders.push(el("th", {}, "Files Changed"));
       }
       
       tableHeaders.push(el("th", {}, "Unique Violations"));
@@ -372,12 +372,12 @@
               el("td", {style:"min-width:140px;"}, displayTimestamp)
             ];
             
-            // Add Python Files Changed column for history runs
+            // Add Files Changed column for history runs
             if (kind === "hist") {
-              const numPythonFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
+              const numFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
                 ? String(c.num_python_file_changed) 
                 : "—";
-              rowCells.push(el("td", {style:"min-width:100px;"}, numPythonFiles));
+              rowCells.push(el("td", {style:"min-width:100px;"}, numFiles));
             }
             
             rowCells.push(el("td", {style:"min-width:120px; text-align:left;"}, ...violationParts));
@@ -427,18 +427,18 @@
       const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
       commitInfo.push(el("div", {}, el("strong", {}, "Timestamp: "), displayTimestamp));
       
-      // Add GitHub URL and Python Files Changed for history runs
+      // Add GitHub URL and Files Changed for history runs
       if (kind === "hist") {
         // Add GitHub URL
         if (c.github_url && c.github_url.trim()) {
           commitInfo.push(el("div", {}, el("strong", {}, "GitHub URL: "), el("a", {href: c.github_url, target: "_blank"}, c.github_url)));
         }
         
-        // Add Python Files Changed
-        const numPythonFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
+        // Add Files Changed
+        const numFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
           ? String(c.num_python_file_changed) 
           : "—";
-        commitInfo.push(el("div", {}, el("strong", {}, "Python Files Changed: "), numPythonFiles));
+        commitInfo.push(el("div", {}, el("strong", {}, "Files Changed: "), numFiles));
       }
       
       // Build violation display: grey current, red delta +, green delta -
