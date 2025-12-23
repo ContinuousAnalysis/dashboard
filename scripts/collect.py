@@ -460,6 +460,8 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     coverage = r.get("coverage", "")
                     commit_msg = r.get("current_commit_message", "")
                     commit_ts = r.get("current_commit_timestamp", "")
+                    num_python_files = r.get("num_python_file_changed", "")
+                    github_url_val = r.get("github_url", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
 
                     # Read violation counts from CSV
@@ -489,7 +491,9 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             "current_commit_timestamp": None,
                             "num_current_violations": 0,
                             "num_new_violations": 0,
-                            "num_old_violations": 0
+                            "num_old_violations": 0,
+                            "num_python_file_changed": None,
+                            "github_url": None
                         }
                     if ts and (commits_map[sha]["ts"] or 0) < ts:
                         commits_map[sha]["ts"] = ts
@@ -519,6 +523,17 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                         commit_ts_epoch = to_epoch(commit_ts)
                         if commit_ts_epoch:
                             commits_map[sha]["current_commit_timestamp"] = commit_ts_epoch
+                    
+                    # Store num_python_file_changed if present
+                    if num_python_files and str(num_python_files).strip() and str(num_python_files).strip().lower() != "nan":
+                        try:
+                            commits_map[sha]["num_python_file_changed"] = int(float(str(num_python_files).strip()))
+                        except (ValueError, TypeError):
+                            pass
+                    
+                    # Store github_url if present
+                    if github_url_val and str(github_url_val).strip() and str(github_url_val).strip().lower() != "nan":
+                        commits_map[sha]["github_url"] = str(github_url_val).strip()
 
                 # Aggregate to output format
                 EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
@@ -567,7 +582,15 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     # Add commit timestamp if available
                     if obj.get("current_commit_timestamp") is not None:
                         commit_data["current_commit_timestamp"] = obj["current_commit_timestamp"]
-
+                    
+                    # Add num_python_file_changed if available (for history runs)
+                    if obj.get("num_python_file_changed") is not None:
+                        commit_data["num_python_file_changed"] = obj["num_python_file_changed"]
+                    
+                    # Add github_url if available (for history runs)
+                    if obj.get("github_url") is not None:
+                        commit_data["github_url"] = obj["github_url"]
+                    
                     proj["commits"].append(commit_data)
 
                 total_commits += len(commits_map)

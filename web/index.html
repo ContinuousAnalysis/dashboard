@@ -299,9 +299,15 @@
       const tableHeaders = [
         el("th", {}, "Commit"),
         el("th", {}, "Commit Message"),
-        el("th", {}, "Timestamp (ET)"),
-        el("th", {}, "Unique Violations")
+        el("th", {}, "Timestamp (ET)")
       ];
+      
+      // Add Python Files Changed column for history runs
+      if (kind === "hist") {
+        tableHeaders.push(el("th", {}, "Python Files Changed"));
+      }
+      
+      tableHeaders.push(el("th", {}, "Unique Violations"));
       
       if (hasCoverage) {
         tableHeaders.push(el("th", {}, "Coverage"));
@@ -363,9 +369,18 @@
             const rowCells = [
               el("td", {style:"min-width:80px;"}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.current_commit_sha || c.sha}`, class:"nowrap"}, (c.current_commit_sha || c.sha).slice(0,7))),
               el("td", {title: commitMessage, style:"max-width:600px;"}, shortMessage),
-              el("td", {style:"min-width:140px;"}, displayTimestamp),
-              el("td", {style:"min-width:120px; text-align:left;"}, ...violationParts)
+              el("td", {style:"min-width:140px;"}, displayTimestamp)
             ];
+            
+            // Add Python Files Changed column for history runs
+            if (kind === "hist") {
+              const numPythonFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
+                ? String(c.num_python_file_changed) 
+                : "—";
+              rowCells.push(el("td", {style:"min-width:100px;"}, numPythonFiles));
+            }
+            
+            rowCells.push(el("td", {style:"min-width:120px; text-align:left;"}, ...violationParts));
             
             if (hasCoverage) {
               const coverageDisplay = (c.coverage !== undefined && c.coverage !== null) 
@@ -411,6 +426,20 @@
       // Add commit timestamp - always show, even if missing
       const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
       commitInfo.push(el("div", {}, el("strong", {}, "Timestamp: "), displayTimestamp));
+      
+      // Add GitHub URL and Python Files Changed for history runs
+      if (kind === "hist") {
+        // Add GitHub URL
+        if (c.github_url && c.github_url.trim()) {
+          commitInfo.push(el("div", {}, el("strong", {}, "GitHub URL: "), el("a", {href: c.github_url, target: "_blank"}, c.github_url)));
+        }
+        
+        // Add Python Files Changed
+        const numPythonFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
+          ? String(c.num_python_file_changed) 
+          : "—";
+        commitInfo.push(el("div", {}, el("strong", {}, "Python Files Changed: "), numPythonFiles));
+      }
       
       // Build violation display: grey current, red delta +, green delta -
       const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
