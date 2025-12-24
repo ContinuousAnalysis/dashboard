@@ -199,7 +199,7 @@
 
       // Violations trend for each commit (entire series)
       const allCommits = (p.commits||[]);
-      const valuesAll = allCommits.map(cc => (cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0);
+      const valuesAll = allCommits.map(cc => (cc.num_current_violations !== undefined && cc.num_current_violations !== null) ? (typeof cc.num_current_violations === "number" ? cc.num_current_violations : 0) : 0);
       const labelsAll = allCommits.map(cc => cc.sha.slice(0,7));
       if (valuesAll.length) {
         const maxValAll = Math.max(1, ...valuesAll);
