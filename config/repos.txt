@@ -11,7 +11,6 @@ ContinuousAnalysis/olmo-cookbook
 Zhuohang-Shen/ON1Builder
 Zhuohang-Shen/aframe
 ContinuousAnalysis/pySigma
-Zhuohang-Shen/PDFMathTranslate 
 Zhuohang-Shen/gpu4pyscf
 Zhuohang-Shen/dyana
 ContinuousAnalysis/Lang2SQL
