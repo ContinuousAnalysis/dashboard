@@ -23,7 +23,6 @@ def _ensure_prefix_list(value) -> List[str]:
     raise TypeError(f"Expected string or list of strings for prefix configuration, got {type(value).__name__}")
 
 MON_PREFIXES = _ensure_prefix_list(CONFIG["monitoring_prefix"])
-HIS_PREFIXES = _ensure_prefix_list(CONFIG["history_prefix"])
 CSV_CANDS  = CONFIG["csv_name_candidates"]
 FAIL_IF_MISSING_CSV = CONFIG.get("fail_if_missing_csv", True)
 
