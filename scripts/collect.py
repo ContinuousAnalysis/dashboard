@@ -1,4 +1,4 @@
-import os, io, json, time, zipfile, pathlib, hashlib, re, datetime as dt, subprocess
+import os, io, json, time, zipfile, pathlib, hashlib, re, datetime as dt
 from typing import Dict, Any, List, Optional, Tuple
 import requests
 import pandas as pd
@@ -23,6 +23,7 @@ def _ensure_prefix_list(value) -> List[str]:
     raise TypeError(f"Expected string or list of strings for prefix configuration, got {type(value).__name__}")
 
 MON_PREFIXES = _ensure_prefix_list(CONFIG["monitoring_prefix"])
+HIS_PREFIXES = _ensure_prefix_list(CONFIG["history_prefix"])
 CSV_CANDS  = CONFIG["csv_name_candidates"]
 FAIL_IF_MISSING_CSV = CONFIG.get("fail_if_missing_csv", True)
 
@@ -44,12 +45,6 @@ def gh_get_bin(url: str) -> bytes:
     r.raise_for_status()
     time.sleep(0.2)
     return r.content
-
-def gh_post(url: str, data: dict) -> Any:
-    r = requests.post(url, headers=HDRS, json=data, timeout=60)
-    r.raise_for_status()
-    time.sleep(0.2)
-    return r.json()
 
 # ---------- Artifact helpers ----------
 _TS_IN_NAME = re.compile(r"(\d{8}T\d{6}Z)")
@@ -664,163 +659,6 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
         totals["new_locations_after_first"] = total_new_after_first
     return {"projects": projects_out, "totals": totals}
 
-def get_repo_info() -> Optional[Tuple[str, str]]:
-    """
-    Get repository owner and name from environment variables or git remote.
-    Returns (owner, repo) tuple or None if not found.
-    """
-    # Try environment variable first (set in GitHub Actions)
-    gh_repo = os.getenv("GITHUB_REPOSITORY")
-    if gh_repo:
-        parts = gh_repo.split("/", 1)
-        if len(parts) == 2:
-            return tuple(parts)
-    
-    # Try to get from git remote
-    try:
-        result = subprocess.run(
-            ["git", "remote", "get-url", "origin"],
-            capture_output=True,
-            text=True,
-            timeout=5,
-            cwd=ROOT
-        )
-        if result.returncode == 0:
-            url = result.stdout.strip()
-            # Handle both SSH and HTTPS formats
-            # git@github.com:owner/repo.git or https://github.com/owner/repo.git
-            if url.startswith("git@"):
-                url = url.replace("git@github.com:", "").replace(".git", "")
-            elif url.startswith("https://github.com/"):
-                url = url.replace("https://github.com/", "").replace(".git", "")
-            parts = url.split("/", 1)
-            if len(parts) == 2:
-                return tuple(parts)
-    except Exception:
-        pass
-    
-    return None
-
-def create_release(owner: str, repo: str, tag: str, name: str, body: str) -> Optional[dict]:
-    """
-    Create a GitHub release.
-    
-    Args:
-        owner: Repository owner
-        repo: Repository name
-        tag: Tag name (e.g., "v1.0.0" or "dashboard-20250101-120000")
-        name: Release name
-        body: Release description
-        
-    Returns:
-        Release object or None if creation fails
-    """
-    if not TOKEN:
-        print("Warning: No GitHub token available, skipping release creation")
-        return None
-    
-    url = f"{API}/repos/{owner}/{repo}/releases"
-    data = {
-        "tag_name": tag,
-        "name": name,
-        "body": body,
-        "draft": False,
-        "prerelease": False
-    }
-    
-    try:
-        release = gh_post(url, data)
-        return release
-    except Exception as e:
-        print(f"Error creating release: {e}")
-        return None
-
-def upload_release_asset(owner: str, repo: str, release_id: int, file_path: pathlib.Path, asset_name: str) -> bool:
-    """
-    Upload a file as a release asset.
-    
-    Args:
-        owner: Repository owner
-        repo: Repository name
-        release_id: Release ID from create_release
-        file_path: Path to the file to upload
-        asset_name: Name for the asset in the release
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    if not TOKEN:
-        return False
-    
-    if not file_path.exists():
-        print(f"Warning: File not found for release asset: {file_path}")
-        return False
-    
-    url = f"{API}/repos/{owner}/{repo}/releases/{release_id}/assets"
-    
-    try:
-        with open(file_path, "rb") as f:
-            content = f.read()
-        
-        # GitHub API requires specific headers for asset uploads
-        headers = {
-            "Accept": "application/vnd.github+json",
-            "Authorization": f"Bearer {TOKEN}"
-        }
-        
-        params = {"name": asset_name}
-        
-        r = requests.post(url, headers=headers, data=content, params=params, timeout=120)
-        r.raise_for_status()
-        time.sleep(0.2)
-        return True
-    except Exception as e:
-        print(f"Error uploading asset {asset_name}: {e}")
-        return False
-
-def create_dashboard_release() -> bool:
-    """
-    Create a GitHub release for the built dashboard.
-    
-    Returns:
-        True if release was created successfully, False otherwise
-    """
-    repo_info = get_repo_info()
-    if not repo_info:
-        print("Warning: Could not determine repository info, skipping release creation")
-        return False
-    
-    owner, repo = repo_info
-    
-    # Generate tag and release name based on timestamp
-    timestamp = dt.datetime.now(dt.timezone.utc)
-    tag = f"dashboard-{timestamp.strftime('%Y%m%d-%H%M%S')}"
-    name = f"Dashboard Build - {timestamp.strftime('%Y-%m-%d %H:%M:%S')} UTC"
-    body = f"Automated dashboard build generated at {timestamp.isoformat()}\n\nThis release contains the built dashboard files."
-    
-    # Create the release
-    release = create_release(owner, repo, tag, name, body)
-    if not release:
-        return False
-    
-    release_id = release["id"]
-    print(f"Created release {tag} (ID: {release_id})")
-    
-    # Upload assets
-    assets_uploaded = 0
-    if (OUT / "data.json").exists():
-        if upload_release_asset(owner, repo, release_id, OUT / "data.json", "data.json"):
-            assets_uploaded += 1
-            print("Uploaded data.json")
-    
-    if (OUT / "index.html").exists():
-        if upload_release_asset(owner, repo, release_id, OUT / "index.html", "index.html"):
-            assets_uploaded += 1
-            print("Uploaded index.html")
-    
-    print(f"Release created successfully with {assets_uploaded} assets")
-    return True
-
 def build():
     payload = {
         "generated_at": int(time.time()),
@@ -831,9 +669,6 @@ def build():
     }
     (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
     copyfile(WEB / "index.html", OUT / "index.html")
-    
-    # Create a GitHub release for the built dashboard
-    create_dashboard_release()
 
 if __name__ == "__main__":
     build()
