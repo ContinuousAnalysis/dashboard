@@ -574,9 +574,15 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     if github_url_val and str(github_url_val).strip() and str(github_url_val).strip().lower() != "nan":
                         commits_map[sha]["github_url"] = str(github_url_val).strip()
 
+                # Aggregate to output format
+                EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
                     for v in obj["violations_raw"]:
+                        # Skip excluded file paths
+                        if EXCLUDED_PATH in v["file"]:
+                            continue
                         key = (v["file"], v["line"])
                         rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
                         rec["specs"].add(v["spec"])

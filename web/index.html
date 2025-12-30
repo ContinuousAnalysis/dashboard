@@ -229,7 +229,7 @@
         });
         // Second line
         if (pillsLine2.length > 0) {
-          pillsContainer.append(el("br"));
+          pillsContainer.append(el("div", {style:"margin-top:12px;"}));
           pillsLine2.forEach((pill, i) => {
             if (i > 0) pillsContainer.append(" ");
             pillsContainer.append(pill);
@@ -369,9 +369,6 @@
           const weekAgo = nowEpoch - 7*24*60*60;
           const commitsWeek = (allCommits||[]).filter(cc => (cc.ts||0) >= weekAgo);
           
-          // Calculate stats for last 7 days
-          const weekTotalViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
-          
           // Find the latest commit BEFORE the 7-day window (this is the base for last 7 days)
           // Filter commits before the 7-day window and find the one with the maximum timestamp
           const commitsBeforeWeek = (allCommits||[]).filter(cc => (cc.ts||0) < weekAgo);
@@ -386,13 +383,16 @@
           }
           const baseCommitViolationIds = baseCommitForWeek ? new Set((baseCommitForWeek.violations || []).map(v => v.id).filter(Boolean)) : new Set();
           
-          // Get violation IDs from last 7 days commits
+          // Get violation IDs from last 7 days commits (unique violations across all commits in last 7 days)
           const weekViolationIds = new Set();
           commitsWeek.forEach(cc => {
             (cc.violations || []).forEach(v => {
               if (v.id) weekViolationIds.add(v.id);
             });
           });
+          
+          // Calculate stats for last 7 days: unique violations across all commits in last 7 days
+          const weekTotalViolations = weekViolationIds.size;
           
           // Calculate new and removed violations for last 7 days (relative to base commit before 7 days)
           const weekNewAfterFirst = baseCommitForWeek ? Array.from(weekViolationIds).filter(id => !baseCommitViolationIds.has(id)).length : 0;
@@ -403,7 +403,7 @@
           const firstCommit = allCommits.length > 0 ? allCommits[0] : null;
           const firstCommitViolationIds = firstCommit ? new Set((firstCommit.violations || []).map(v => v.id).filter(Boolean)) : new Set();
           
-          // Get violation IDs from all commits
+          // Get violation IDs from all commits (unique violations across all commits)
           const allViolationIds = new Set();
           allCommits.forEach(cc => {
             (cc.violations || []).forEach(v => {
@@ -411,8 +411,8 @@
             });
           });
           
-          // Calculate stats for all commits
-          const allTotalViolations = allCommits.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
+          // Calculate stats for all commits: unique violations across all commits
+          const allTotalViolations = allViolationIds.size;
           const allNewAfterFirst = firstCommit ? Array.from(allViolationIds).filter(id => !firstCommitViolationIds.has(id)).length : 0;
           const allRemovedAfterFirst = firstCommit ? Array.from(firstCommitViolationIds).filter(id => !allViolationIds.has(id)).length : 0;
           
