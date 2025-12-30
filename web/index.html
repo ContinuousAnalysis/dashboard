@@ -640,8 +640,8 @@
       
       // Add GitHub compare URL for monitoring runs
       if (kind === "now") {
-        // Find previous commit to generate compare URL
-        const allCommits = (p.commits||[]).slice().reverse();
+        // Find previous commit (older) to generate compare URL
+        const allCommits = p.commits || [];
         const currentSha = c.current_commit_sha || c.sha;
         const currentIdx = allCommits.findIndex(oc => (oc.current_commit_sha || oc.sha) === currentSha);
         const previousCommit = currentIdx > 0 ? allCommits[currentIdx - 1] : null;
