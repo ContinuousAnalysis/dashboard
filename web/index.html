@@ -202,24 +202,24 @@
         const urlBoxContent = [
           el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
         ];
+
+        // Project URL (first element)
+        urlBoxContent.push(
+          el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
+            el("span", {}, "Project URL: "),
+            p.url 
+              ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
+              : el("span", {class:"muted"}, "—")
+          )
+        );
         
-        // Shadowed Project URL (first element with https://github.com/ prepended)
+        // Shadowed Project URL (second element with https://github.com/ prepended)
         const shadowedUrl = p.shadowed_repo ? `https://github.com/${p.shadowed_repo}` : null;
         urlBoxContent.push(
           el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
             el("span", {}, "Shadowed Project URL: "),
             shadowedUrl 
               ? el("a", {href:shadowedUrl, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, shadowedUrl)
-              : el("span", {class:"muted"}, "—")
-          )
-        );
-        
-        // Project URL (second element)
-        urlBoxContent.push(
-          el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
-            el("span", {}, "Project URL: "),
-            p.url 
-              ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
               : el("span", {class:"muted"}, "—")
           )
         );
@@ -234,7 +234,7 @@
           )
         );
         
-        app.append(el("div", {class:"card", style:"width:100%; margin-bottom:8px; margin-top:0; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
+        app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
       }
 
       // Violations trend for each commit (entire series)
