@@ -189,6 +189,16 @@
       if (!p) return app.append(el("div", {}, "Project not found"));
       app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
 
+      // Project URL box (page width)
+      if (p.url) {
+        app.append(el("div", {class:"card", style:"width:100%; margin-bottom:16px; background:#f8f9fa;"},
+          el("div", {style:"display:flex; align-items:center; gap:8px;"},
+            el("strong", {}, "Project URL: "),
+            el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
+          )
+        ));
+      }
+
       // Controls: time range (UTC) + text filter
       const controls = el("div", {class:"controls"});
       const from = el("input", {type:"datetime-local", id:"from"});
