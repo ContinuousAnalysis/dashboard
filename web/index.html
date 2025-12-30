@@ -197,42 +197,44 @@
       controls.append(el("span", {class:"muted"}, "From:"), from, el("span", {class:"muted"}, "To:"), to, search);
       app.append(controls);
 
-      // Project URL box
+      // Project Metadata box
       if (p.shadowed_repo || p.url || p.date_shadowing_started) {
-        const urlBoxContent = [];
+        const urlBoxContent = [
+          el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
+        ];
         
         // Shadowed Project URL (first element with https://github.com/ prepended)
-        if (p.shadowed_repo) {
-          const shadowedUrl = `https://github.com/${p.shadowed_repo}`;
-          urlBoxContent.push(
-            el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
-              el("strong", {}, "Shadowed Project URL: "),
-              el("a", {href:shadowedUrl, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, shadowedUrl)
-            )
-          );
-        }
+        const shadowedUrl = p.shadowed_repo ? `https://github.com/${p.shadowed_repo}` : null;
+        urlBoxContent.push(
+          el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
+            el("span", {}, "Shadowed Project URL: "),
+            shadowedUrl 
+              ? el("a", {href:shadowedUrl, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, shadowedUrl)
+              : el("span", {class:"muted"}, "—")
+          )
+        );
         
         // Project URL (second element)
-        if (p.url) {
-          urlBoxContent.push(
-            el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
-              el("strong", {}, "Project URL: "),
-              el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
-            )
-          );
-        }
+        urlBoxContent.push(
+          el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
+            el("span", {}, "Project URL: "),
+            p.url 
+              ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
+              : el("span", {class:"muted"}, "—")
+          )
+        );
         
         // Date shadowing started (third element)
-        if (p.date_shadowing_started) {
-          urlBoxContent.push(
-            el("div", {style:"display:flex; align-items:center; gap:8px;"},
-              el("strong", {}, "Date shadowing started: "),
-              el("span", {}, p.date_shadowing_started)
-            )
-          );
-        }
+        urlBoxContent.push(
+          el("div", {style:"display:flex; align-items:center; gap:8px;"},
+            el("span", {}, "Date shadowing started: "),
+            p.date_shadowing_started 
+              ? el("span", {}, p.date_shadowing_started)
+              : el("span", {class:"muted"}, "—")
+          )
+        );
         
-        app.append(el("div", {class:"card", style:"width:100%; margin-bottom:16px; background:#f8f9fa;"}, ...urlBoxContent));
+        app.append(el("div", {class:"card", style:"width:100%; margin-bottom:8px; margin-top:0; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
       }
 
       // Violations trend for each commit (entire series)
