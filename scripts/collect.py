@@ -12,17 +12,19 @@ DATA = ROOT / "data"
 OUT.mkdir(parents=True, exist_ok=True)
 
 CONFIG = json.loads((ROOT / "config" / "settings.json").read_text())
-# Parse repos.txt: format is "owner/repo;url" or just "owner/repo"
-REPOS_WITH_URLS = []
+
+# Parse repos.txt: format is "owner/repo;url;date" or variations
+REPOS_WITH_METADATA = []
 for l in (ROOT / "config" / "repos.txt").read_text().splitlines():
     l = l.strip()
     if not l or l.startswith("#"):
         continue
-    parts = l.split(";", 1)
-    repo_name = parts[0].strip()
-    url = parts[1].strip() if len(parts) > 1 else None
-    REPOS_WITH_URLS.append((repo_name, url))
-REPOS = [repo for repo, _ in REPOS_WITH_URLS]
+    parts = [p.strip() for p in l.split(";")]
+    repo_name = parts[0] if len(parts) > 0 else ""
+    url = parts[1] if len(parts) > 1 else None
+    date = parts[2] if len(parts) > 2 else None
+    REPOS_WITH_METADATA.append((repo_name, url, date))
+REPOS = [repo for repo, _, _ in REPOS_WITH_METADATA]
 
 def _ensure_prefix_list(value) -> List[str]:
     if isinstance(value, str):
@@ -224,8 +226,9 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
     projects_out, total_commits, total_locations = [], 0, 0
     total_new_after_first = 0
 
-    # Create a mapping from repo name to URL
-    repo_url_map = {repo: url for repo, url in REPOS_WITH_URLS}
+    # Create mappings from repo name to metadata
+    repo_url_map = {repo: url for repo, url, _ in REPOS_WITH_METADATA}
+    repo_date_map = {repo: date for repo, _, date in REPOS_WITH_METADATA}
     
     for full in REPOS:
         owner, repo = full.split("/", 1)
@@ -240,6 +243,8 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
             "full_name": full,
             "latest_artifact_name": art.get("name") if art else None,
             "url": repo_url_map.get(full),
+            "shadowed_repo": full,
+            "date_shadowing_started": repo_date_map.get(full),
             "commits": []
         }
 
@@ -434,7 +439,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
     # Track repo names that are explicitly listed in repos.txt
     configured_repo_names = set()
 
-    def process_one_project(full: str, csv_path: pathlib.Path, url: Optional[str] = None):
+    def process_one_project(full: str, csv_path: pathlib.Path, url: Optional[str] = None, date: Optional[str] = None):
         """
         Process a single CSV file into the unified project/commit structure.
         Mutates projects_out / total_* counters in the outer scope.
@@ -447,6 +452,8 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
             "full_name": full,
             "latest_artifact_name": None,  # Not applicable for local data
             "url": url,
+            "shadowed_repo": full,
+            "date_shadowing_started": date,
             "commits": []
         }
 
@@ -646,8 +653,9 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
             # so it does not appear in the history tab.
             print(f"WARNING: CSV file not found for {full}: {csv_path}")
 
-    # Create a mapping from repo name to URL
-    repo_url_map = {repo: url for repo, url in REPOS_WITH_URLS}
+    # Create mappings from repo name to metadata
+    repo_url_map = {repo: url for repo, url, _ in REPOS_WITH_METADATA}
+    repo_date_map = {repo: date for repo, _, date in REPOS_WITH_METADATA}
     
     # First, process all projects that are explicitly configured in repos.txt
     for full in REPOS:
@@ -657,7 +665,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
 
         # CSV filename is the repo name
         csv_path = DATA / f"{repo}.csv"
-        process_one_project(full, csv_path, repo_url_map.get(full))
+        process_one_project(full, csv_path, repo_url_map.get(full), repo_date_map.get(full))
 
     # Then, add any remaining CSV files in the data directory as standalone projects
     # (these may not appear in repos.txt). The file stem becomes the repo name.
@@ -668,7 +676,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
 
         # Use the filename as the "repo" identifier for history runs not in repos.txt
         full = repo_name
-        process_one_project(full, csv_path, None)
+        process_one_project(full, csv_path, None, None)
 
     totals = {"commits": total_commits, "locations": total_locations}
     if compute_after_first:
