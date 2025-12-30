@@ -220,7 +220,7 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
     Reads artifacts with the first available prefix (tries each in order).
     Requires CSV columns (lowercased after read):
       timestamp, current_commit_sha, new_violations
-    Uses ONLY 'new_violations' (blank => zero violations).
+    Uses 'new_violations' for violations list, 'current_violations' for count calculation.
     Aggregates distinct specs per (file,line).
     """
     projects_out, total_commits, total_locations = [], 0, 0
@@ -290,8 +290,21 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     commit_ts = r.get("current_commit_timestamp", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
                     
-                    # Read violation counts from CSV
-                    num_current = r.get("num_current_violations", "")
+                    # Calculate num_current_violations from current_violations column
+                    current_v = str(r.get("current_violations", "") or "").strip()
+                    current_v_locs = parse_vloc_cell(current_v) if current_v else []
+                    # Count unique violation locations from current_violations (excluding excluded paths)
+                    EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+                    current_v_by_loc = {}
+                    for v in current_v_locs:
+                        # Skip excluded file paths
+                        if EXCLUDED_PATH in v["file"]:
+                            continue
+                        key = (v["file"], v["line"])
+                        current_v_by_loc[key] = True
+                    num_current_int = len(current_v_by_loc)
+                    
+                    # Read other violation counts from CSV
                     num_new = r.get("num_new_violations", "")
                     num_old = r.get("num_old_violations", "")
                     
@@ -302,8 +315,6 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                             return int(float(str(val).strip()))
                         except (ValueError, TypeError):
                             return 0
-                    
-                    num_current_int = parse_int_or_zero(num_current)
                     num_new_int = parse_int_or_zero(num_new)
                     num_old_int = parse_int_or_zero(num_old)
 
@@ -373,15 +384,16 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                             "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
 
-                    # Use num_current_violations from CSV for counts.locations (total current violations)
-                    # The violations list only contains new violations from new_violations column, not all current violations
+                    # Use num_current_violations calculated from current_violations column
+                    # violations list contains new violations from new_violations column, not all current violations
+                    calculated_current_violations = obj.get("num_current_violations", 0)
                     commit_data = {
                         "sha": sha,
                         "current_commit_sha": sha,
                         "ts": obj["ts"],
-                        "counts": {"locations": obj.get("num_current_violations", 0)},
+                        "counts": {"locations": calculated_current_violations},
                         "violations": violations,
-                        "num_current_violations": obj.get("num_current_violations", 0),
+                        "num_current_violations": calculated_current_violations,
                         "num_new_violations": obj.get("num_new_violations", 0),
                         "num_old_violations": obj.get("num_old_violations", 0)
                     }
@@ -449,7 +461,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
     CSV filename should match the repo name (part after '/' in full repo name).
     Requires CSV columns (lowercased after read):
       timestamp, current_commit_sha, new_violations
-    Uses ONLY 'new_violations' (blank => zero violations).
+    Uses 'new_violations' for violations list, 'current_violations' for count calculation.
     Aggregates distinct specs per (file,line).
     """
     projects_out, total_commits, total_locations = [], 0, 0
@@ -503,8 +515,21 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     github_url_val = r.get("github_url", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
 
-                    # Read violation counts from CSV
-                    num_current = r.get("num_current_violations", "")
+                    # Calculate num_current_violations from current_violations column
+                    current_v = str(r.get("current_violations", "") or "").strip()
+                    current_v_locs = parse_vloc_cell(current_v) if current_v else []
+                    # Count unique violation locations from current_violations (excluding excluded paths)
+                    EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+                    current_v_by_loc = {}
+                    for v in current_v_locs:
+                        # Skip excluded file paths
+                        if EXCLUDED_PATH in v["file"]:
+                            continue
+                        key = (v["file"], v["line"])
+                        current_v_by_loc[key] = True
+                    num_current_int = len(current_v_by_loc)
+
+                    # Read other violation counts from CSV
                     num_new = r.get("num_new_violations", "")
                     num_old = r.get("num_old_violations", "")
 
@@ -515,8 +540,6 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             return int(float(str(val).strip()))
                         except (ValueError, TypeError):
                             return 0
-
-                    num_current_int = parse_int_or_zero(num_current)
                     num_new_int = parse_int_or_zero(num_new)
                     num_old_int = parse_int_or_zero(num_old)
 
@@ -599,14 +622,16 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
 
-                    # Use num_current_violations from CSV for counts.locations (total current violations)
+                    # Use num_current_violations calculated from current_violations column
+                    # violations list contains new violations from new_violations column, not all current violations
+                    calculated_current_violations = obj.get("num_current_violations", 0)
                     commit_data = {
                         "sha": sha,
                         "current_commit_sha": sha,
                         "ts": obj["ts"],
-                        "counts": {"locations": obj.get("num_current_violations", 0)},
+                        "counts": {"locations": calculated_current_violations},
                         "violations": violations,
-                        "num_current_violations": obj.get("num_current_violations", 0),
+                        "num_current_violations": calculated_current_violations,
                         "num_new_violations": obj.get("num_new_violations", 0),
                         "num_old_violations": obj.get("num_old_violations", 0)
                     }
