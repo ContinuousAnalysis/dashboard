@@ -197,8 +197,8 @@
       controls.append(el("span", {class:"muted"}, "From:"), from, el("span", {class:"muted"}, "To:"), to, search);
       app.append(controls);
 
-      // Project Metadata box
-      if (p.shadowed_repo || p.url || p.date_shadowing_started) {
+      // Project Metadata box (only show for monitoring runs, not history runs)
+      if (kind === "now" && (p.shadowed_repo || p.url || p.date_shadowing_started)) {
         const urlBoxContent = [
           el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
         ];
@@ -479,6 +479,35 @@
           ? String(c.num_python_file_changed) 
           : "—";
         commitInfo.push(el("div", {}, el("strong", {}, "Files Changed: "), numFiles));
+      }
+      
+      // Add GitHub compare URL for monitoring runs
+      if (kind === "now") {
+        // Find previous commit to generate compare URL
+        const allCommits = (p.commits||[]).slice().reverse();
+        const currentSha = c.current_commit_sha || c.sha;
+        const currentIdx = allCommits.findIndex(oc => (oc.current_commit_sha || oc.sha) === currentSha);
+        const previousCommit = currentIdx > 0 ? allCommits[currentIdx - 1] : null;
+        
+        // Generate GitHub compare URL
+        if (p.url && currentSha) {
+          const urlMatch = p.url.match(/github\.com\/([^\/]+\/[^\/]+)/);
+          if (urlMatch) {
+            const repoPath = urlMatch[1];
+            let githubUrl;
+            if (previousCommit) {
+              const previousSha = previousCommit.current_commit_sha || previousCommit.sha;
+              if (previousSha) {
+                githubUrl = `https://github.com/${repoPath}/compare/${previousSha}...${currentSha}`;
+              } else {
+                githubUrl = `https://github.com/${repoPath}/commit/${currentSha}`;
+              }
+            } else {
+              githubUrl = `https://github.com/${repoPath}/commit/${currentSha}`;
+            }
+            commitInfo.push(el("div", {}, el("strong", {}, "GitHub URL: "), el("a", {href: githubUrl, target: "_blank"}, githubUrl)));
+          }
+        }
       }
       
       // Build violation display: grey current, red delta +, green delta -
