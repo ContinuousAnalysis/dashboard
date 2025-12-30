@@ -230,10 +230,23 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
     repo_url_map = {repo: url for repo, url, _ in REPOS_WITH_METADATA}
     repo_date_map = {repo: date for repo, _, date in REPOS_WITH_METADATA}
     
-    for full in REPOS:
+    # Iterate through repos in order, using line number (1-based) to determine prefix
+    # Projects on lines 1-45 use "continuous-analysis-future-filtered-results-"
+    # Projects on lines 46+ use "continuous-analysis-filtered-results-"
+    for idx, full in enumerate(REPOS):
         owner, repo = full.split("/", 1)
         art = None
-        for prefix in prefixes:
+        
+        # Line number is idx + 1 (1-based)
+        line_number = idx + 1
+        if line_number <= 45:
+            # Projects on lines 1-45 use future prefix
+            selected_prefixes = ["continuous-analysis-future-filtered-results-"]
+        else:
+            # Projects on lines 46+ use regular prefix
+            selected_prefixes = ["continuous-analysis-filtered-results-"]
+        
+        for prefix in selected_prefixes:
             art = latest_with_prefix(owner, repo, prefix)
             if art:
                 break
