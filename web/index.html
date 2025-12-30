@@ -278,6 +278,9 @@
           const newAfterFirst = (p.counts && typeof p.counts.new_locations_after_first === "number") 
             ? p.counts.new_locations_after_first 
             : 0;
+          const removedAfterFirst = (p.counts && typeof p.counts.removed_locations_after_first === "number") 
+            ? p.counts.removed_locations_after_first 
+            : 0;
           
           statsTitle = "History Stats";
           statsItems = [
@@ -292,42 +295,134 @@
             el("div", {},
               el("div", {class:"muted"}, "New unique violations after first commit"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(newAfterFirst))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "Removed unique violations after first commit"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(removedAfterFirst))
             )
           ];
         } else {
-          // For monitoring runs: show last 7 days stats
+          // For monitoring runs: show last 7 days stats and all commits stats
           const nowEpoch = Math.floor(Date.now() / 1000);
           const weekAgo = nowEpoch - 7*24*60*60;
           const commitsWeek = (allCommits||[]).filter(cc => (cc.ts||0) >= weekAgo);
-          const weekCommitCount = commitsWeek.length;
-          const weekViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
           
+          // Calculate stats for last 7 days
+          const weekTotalViolations = commitsWeek.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
+          
+          // Find the latest commit BEFORE the 7-day window (this is the base for last 7 days)
+          // Filter commits before the 7-day window and find the one with the maximum timestamp
+          const commitsBeforeWeek = (allCommits||[]).filter(cc => (cc.ts||0) < weekAgo);
+          let baseCommitForWeek = null;
+          if (commitsBeforeWeek.length > 0) {
+            // Find commit with maximum timestamp (most recent before the 7-day window)
+            baseCommitForWeek = commitsBeforeWeek.reduce((latest, cc) => {
+              const ccTs = cc.ts || 0;
+              const latestTs = latest.ts || 0;
+              return ccTs > latestTs ? cc : latest;
+            }, commitsBeforeWeek[0]);
+          }
+          const baseCommitViolationIds = baseCommitForWeek ? new Set((baseCommitForWeek.violations || []).map(v => v.id).filter(Boolean)) : new Set();
+          
+          // Get violation IDs from last 7 days commits
+          const weekViolationIds = new Set();
+          commitsWeek.forEach(cc => {
+            (cc.violations || []).forEach(v => {
+              if (v.id) weekViolationIds.add(v.id);
+            });
+          });
+          
+          // Calculate new and removed violations for last 7 days (relative to base commit before 7 days)
+          const weekNewAfterFirst = baseCommitForWeek ? Array.from(weekViolationIds).filter(id => !baseCommitViolationIds.has(id)).length : 0;
+          // Removed in last 7 days: violations in base commit that don't appear in last 7 days commits
+          const weekRemovedAfterFirst = baseCommitForWeek ? Array.from(baseCommitViolationIds).filter(id => !weekViolationIds.has(id)).length : 0;
+          
+          // For "All commits" stats, use the first commit as base
+          const firstCommit = allCommits.length > 0 ? allCommits[0] : null;
+          const firstCommitViolationIds = firstCommit ? new Set((firstCommit.violations || []).map(v => v.id).filter(Boolean)) : new Set();
+          
+          // Get violation IDs from all commits
+          const allViolationIds = new Set();
+          allCommits.forEach(cc => {
+            (cc.violations || []).forEach(v => {
+              if (v.id) allViolationIds.add(v.id);
+            });
+          });
+          
+          // Calculate stats for all commits
+          const allTotalViolations = allCommits.reduce((a,cc) => a + ((cc.counts && typeof cc.counts.locations === "number") ? cc.counts.locations : 0), 0);
+          const allNewAfterFirst = firstCommit ? Array.from(allViolationIds).filter(id => !firstCommitViolationIds.has(id)).length : 0;
+          const allRemovedAfterFirst = firstCommit ? Array.from(firstCommitViolationIds).filter(id => !allViolationIds.has(id)).length : 0;
+          
+          // Last 7 days stats box
           statsTitle = "Last 7 days";
           statsItems = [
             el("div", {},
-              el("div", {class:"muted"}, "New commits"),
-              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekCommitCount))
+              el("div", {class:"muted"}, "Total violations"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekTotalViolations))
             ),
             el("div", {},
-              el("div", {class:"muted"}, "New violations"),
-              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekViolations))
+              el("div", {class:"muted"}, "New violations after first commit"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekNewAfterFirst))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "Removed violations after first commit"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekRemovedAfterFirst))
             )
           ];
+          
+          // All commits stats box
+          const allCommitsStatsTitle = "All commits";
+          const allCommitsStatsItems = [
+            el("div", {},
+              el("div", {class:"muted"}, "Total violations"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(allTotalViolations))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "New violations after first commit"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(allNewAfterFirst))
+            ),
+            el("div", {},
+              el("div", {class:"muted"}, "Removed violations after first commit"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(allRemovedAfterFirst))
+            )
+          ];
+          
+          // Store for later use in layout
+          window._allCommitsStats = {
+            title: allCommitsStatsTitle,
+            items: allCommitsStatsItems
+          };
         }
 
-        // Layout: chart (left) + status board (right)
-        const row = el("div", {style:"display:flex; gap:12px; align-items:stretch; flex-wrap:wrap;"});
+        // Layout: chart (left) + status boards (right) - width matches Project Metadata box above
+        const row = el("div", {style:"display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; width:100%; box-sizing:border-box;"});
         const chartCard = el("div", {class:"card", style:"flex:1; min-width:520px;"},
           el("h3", {}, "Violations trend per commit"),
           projChart,
           el("div", {class:"muted"}, `Commits: ${valuesAll.length} • Max violations: ${maxValAll}`)
         );
         
-        const statsCard = el("div", {class:"card", style:"width:360px; display:flex; flex-direction:column; justify-content:center;"},
-          el("h3", {}, statsTitle),
-          el("div", {style:"display:flex; flex-direction:column; gap:12px;"}, ...statsItems)
-        );
-        row.append(chartCard, statsCard);
+        if (kind === "now" && window._allCommitsStats) {
+          // For monitoring runs: show two stats boxes side by side
+          const statsCard1 = el("div", {class:"card", style:"width:360px; display:flex; flex-direction:column; justify-content:center;"},
+            el("h3", {}, statsTitle),
+            el("div", {style:"display:flex; flex-direction:column; gap:12px;"}, ...statsItems)
+          );
+          const statsCard2 = el("div", {class:"card", style:"width:360px; display:flex; flex-direction:column; justify-content:center;"},
+            el("h3", {}, window._allCommitsStats.title),
+            el("div", {style:"display:flex; flex-direction:column; gap:12px;"}, ...window._allCommitsStats.items)
+          );
+          row.append(chartCard, statsCard1, statsCard2);
+          delete window._allCommitsStats; // Clean up
+        } else {
+          // For history runs: show single stats box
+          const statsCard = el("div", {class:"card", style:"width:360px; display:flex; flex-direction:column; justify-content:center;"},
+            el("h3", {}, statsTitle),
+            el("div", {style:"display:flex; flex-direction:column; gap:12px;"}, ...statsItems)
+          );
+          row.append(chartCard, statsCard);
+        }
         app.append(row);
       }
 
@@ -379,8 +474,7 @@
           .filter(c => toEpoch==null || (c.ts||0) <= toEpoch)
           .forEach((c, idx, filteredCommits) => {
 
-            // Get violation counts from CSV data
-            const numCurrent = c.num_current_violations ?? 0;
+            const numCurrent = (c.counts && typeof c.counts.locations === "number") ? c.counts.locations : (c.num_current_violations ?? 0);
             const numNew = c.num_new_violations ?? 0;
             const numOld = c.num_old_violations ?? 0;
 
@@ -451,7 +545,8 @@
       ]));
 
       // --- SAFER HEADER (avoid crashes if counts is missing) ---
-      const numCurrent = c.num_current_violations ?? 0;
+      // Use counts.locations (calculated after filtering) instead of num_current_violations from CSV
+      const numCurrent = (c.counts && typeof c.counts.locations === "number") ? c.counts.locations : (c.num_current_violations ?? 0);
       const numNew = c.num_new_violations ?? 0;
       const numOld = c.num_old_violations ?? 0;
 

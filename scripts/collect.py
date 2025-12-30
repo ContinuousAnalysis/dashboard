@@ -417,6 +417,8 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     
                     # New violations = violations that exist in the overall history but NOT in the first commit
                     new_after_first = len(all_violation_ids - base_ids)
+                    # Removed violations = violations that exist in the first commit but NOT in the overall history
+                    removed_after_first = len(base_ids - all_violation_ids)
                     
                     # Debug logging
                     print(f"DEBUG {proj['full_name']}:")
@@ -425,9 +427,11 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     print(f"  Base IDs count: {len(base_ids)}")
                     print(f"  All violation IDs count: {len(all_violation_ids)}")
                     print(f"  New after first: {new_after_first}")
+                    print(f"  Removed after first: {removed_after_first}")
                     
                     # Attach per-project counts
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
+                    proj.setdefault("counts", {})["removed_locations_after_first"] = removed_after_first
                     total_new_after_first += new_after_first
 
         projects_out.append(proj)
@@ -463,7 +467,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
         proj = {
             "slug": full.replace("/","-").lower(),
             "full_name": full,
-            "latest_artifact_name": None,  # Not applicable for local data
+            "latest_artifact_name": csv_path.name if csv_path.exists() else None,  # Use CSV filename for history runs
             "url": url,
             "shadowed_repo": full,
             "date_shadowing_started": date,
@@ -645,7 +649,9 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
 
                     # New violations = violations that exist in the overall history but NOT in the first commit
                     new_after_first = len(all_violation_ids - base_ids)
-
+                    # Removed violations = violations that exist in the first commit but NOT in the overall history
+                    removed_after_first = len(base_ids - all_violation_ids)
+                    
                     # Debug logging
                     print(f"DEBUG {proj['full_name']}:")
                     print(f"  Total commits: {len(proj['commits'])}")
@@ -653,9 +659,11 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     print(f"  Base IDs count: {len(base_ids)}")
                     print(f"  All violation IDs count: {len(all_violation_ids)}")
                     print(f"  New after first: {new_after_first}")
-
+                    print(f"  Removed after first: {removed_after_first}")
+                    
                     # Attach per-project counts
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
+                    proj.setdefault("counts", {})["removed_locations_after_first"] = removed_after_first
                     total_new_after_first += new_after_first
             except Exception as e:
                 print(f"ERROR: Failed to process {csv_path} for {full}: {e}")
