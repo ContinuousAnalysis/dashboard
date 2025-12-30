@@ -373,11 +373,13 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                             "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
 
+                    # Use num_current_violations from CSV for counts.locations (total current violations)
+                    # The violations list only contains new violations from new_violations column, not all current violations
                     commit_data = {
                         "sha": sha,
                         "current_commit_sha": sha,
                         "ts": obj["ts"],
-                        "counts": {"locations": len(violations)},
+                        "counts": {"locations": obj.get("num_current_violations", 0)},
                         "violations": violations,
                         "num_current_violations": obj.get("num_current_violations", 0),
                         "num_new_violations": obj.get("num_new_violations", 0),
@@ -572,15 +574,9 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     if github_url_val and str(github_url_val).strip() and str(github_url_val).strip().lower() != "nan":
                         commits_map[sha]["github_url"] = str(github_url_val).strip()
 
-                # Aggregate to output format
-                EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
-
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
                     for v in obj["violations_raw"]:
-                        # Skip excluded file paths
-                        if EXCLUDED_PATH in v["file"]:
-                            continue
                         key = (v["file"], v["line"])
                         rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
                         rec["specs"].add(v["spec"])
@@ -597,11 +593,12 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                             "breakdown": [{"spec": s, "count": 1} for s in spec_list]
                         })
 
+                    # Use num_current_violations from CSV for counts.locations (total current violations)
                     commit_data = {
                         "sha": sha,
                         "current_commit_sha": sha,
                         "ts": obj["ts"],
-                        "counts": {"locations": len(violations)},
+                        "counts": {"locations": obj.get("num_current_violations", 0)},
                         "violations": violations,
                         "num_current_violations": obj.get("num_current_violations", 0),
                         "num_new_violations": obj.get("num_new_violations", 0),
