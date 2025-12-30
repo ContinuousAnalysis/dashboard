@@ -139,78 +139,16 @@
     // --------- Views ---------
     function renderHome(app, ds, kind){
       if (!ds) return app.append(el("div", {}, "No data"));
-      
-      // Calculate totals by summing across all projects
-      let totalCommits = 0;
-      let totalUniqueViolations = 0;
-      let totalNewAfterFirst = 0;
-      
-      (ds.projects||[]).forEach(p => {
-        const allCommits = p.commits || [];
-        totalCommits += allCommits.length;
-        
-        // Calculate unique violations for this project (all unique violations across all commits)
-        const allViolationKeys = new Set();
-        allCommits.forEach(cc => {
-          (cc.violations || []).forEach(v => {
-            if (v.file && v.line !== undefined) {
-              // Use file|line as the unique key (same as how violation ID is generated)
-              const key = `${v.file}|${v.line}`;
-              allViolationKeys.add(key);
-            } else if (v.id) {
-              // Fallback to ID if file/line not available
-              allViolationKeys.add(v.id);
-            }
-          });
-        });
-        totalUniqueViolations += allViolationKeys.size;
-        
-        // Sum "new after first" from each project
-        if (kind === "hist") {
-          const newAfterFirst = (p.counts && typeof p.counts.new_locations_after_first === "number") 
-            ? p.counts.new_locations_after_first 
-            : 0;
-          totalNewAfterFirst += newAfterFirst;
-        } else {
-          // For monitoring runs, calculate "new after first" for last 7 days
-          const nowEpoch = Math.floor(Date.now() / 1000);
-          const weekAgo = nowEpoch - 7*24*60*60;
-          const commitsWeek = allCommits.filter(cc => (cc.ts||0) >= weekAgo);
-          const commitsBeforeWeek = allCommits.filter(cc => (cc.ts||0) < weekAgo);
-          let baseCommitForWeek = null;
-          if (commitsBeforeWeek.length > 0) {
-            baseCommitForWeek = commitsBeforeWeek.reduce((latest, cc) => {
-              const ccTs = cc.ts || 0;
-              const latestTs = latest.ts || 0;
-              return ccTs > latestTs ? cc : latest;
-            }, commitsBeforeWeek[0]);
-          }
-          
-          if (baseCommitForWeek && commitsWeek.length > 0) {
-            const baseCommitViolationIds = new Set((baseCommitForWeek.violations || []).map(v => v.id).filter(Boolean));
-            const weekViolationIds = new Set();
-            commitsWeek.forEach(cc => {
-              (cc.violations || []).forEach(v => {
-                if (v.id) weekViolationIds.add(v.id);
-              });
-            });
-            const weekNewAfterFirst = Array.from(weekViolationIds).filter(id => !baseCommitViolationIds.has(id)).length;
-            totalNewAfterFirst += weekNewAfterFirst;
-          }
-        }
-      });
-      
+      const totals = ds.totals || {commits:0, locations:0};
       const summaryParts = [
         el("strong", {}, "Total projects: "), String((ds.projects||[]).length),
-        " • ", el("strong", {}, "Total commits: "), String(totalCommits),
-        " • ", el("strong", {}, "Total unique violations: "), String(totalUniqueViolations),
-        " • ", el("strong", {}, "New unique violations after first commit: "), String(totalNewAfterFirst)
+        " • ", el("strong", {}, "Total commits: "), String(totals.commits),
+        " • ", el("strong", {}, "Total unique violations: "), String(totals.locations)
       ];
       
-      // Add label clarification for monitoring runs
-      if (kind !== "hist") {
-        // For monitoring runs, clarify that it's for last 7 days
-        summaryParts[summaryParts.length - 2] = el("strong", {}, "New unique violations after first commit (last 7 days): ");
+      // Add history-specific total
+      if (kind === "hist" && typeof totals.new_locations_after_first === "number") {
+        summaryParts.push(" • ", el("strong", {}, "New unique violations after first commit: "), String(totals.new_locations_after_first));
       }
       
       app.append(el("div", {class:"card"}, ...summaryParts));
