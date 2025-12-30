@@ -56,7 +56,7 @@ ContinuousAnalysis/seldom;https://github.com/SeldomQA/seldom
 ContinuousAnalysis/smart_app_framework;https://github.com/salute-developers/smart_app_framework
 Zhuohang-Shen/pbp;https://github.com/mbari-org/pbp
 Zhuohang-Shen/data-questionnaire-agent;https://github.com/onepointconsulting/data-questionnaire-agent
-Zhuohang-Shen/clickhouse-connectl;https://github.com/ClickHouse/clickhouse-connect
+Zhuohang-Shen/clickhouse-connect;https://github.com/ClickHouse/clickhouse-connect
 Zhuohang-Shen/nervaluate;https://github.com/MantisAI/nervaluate
 Zhuohang-Shen/guarddog;https://github.com/DataDog/guarddog
 Zhuohang-Shen/EDMarketConnector;https://github.com/EDCD/EDMarketConnector
