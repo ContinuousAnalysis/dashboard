@@ -193,15 +193,15 @@
           const nowEpoch = Math.floor(Date.now() / 1000);
           const weekAgo = nowEpoch - 7*24*60*60;
           const allCommits = p.commits || [];
-          const commitsWeek = allCommits.filter(cc => (cc.ts||0) >= weekAgo);
+          const commitsWeek = allCommits.filter(cc => (cc.current_commit_timestamp || 0) >= weekAgo);
           
           // Find the latest commit BEFORE the 7-day window
-          const commitsBeforeWeek = allCommits.filter(cc => (cc.ts||0) < weekAgo);
+          const commitsBeforeWeek = allCommits.filter(cc => (cc.current_commit_timestamp || 0) < weekAgo);
           let baseCommitForWeek = null;
           if (commitsBeforeWeek.length > 0) {
             baseCommitForWeek = commitsBeforeWeek.reduce((latest, cc) => {
-              const ccTs = cc.ts || 0;
-              const latestTs = latest.ts || 0;
+              const ccTs = cc.current_commit_timestamp || 0;
+              const latestTs = latest.current_commit_timestamp || 0;
               return ccTs > latestTs ? cc : latest;
             }, commitsBeforeWeek[0]);
           }
@@ -367,7 +367,7 @@
               el("div", {style:"font-size:28px; font-weight:700;"}, String(totalCommits))
             ),
             el("div", {},
-              el("div", {class:"muted"}, "Total violations"),
+              el("div", {class:"muted"}, "Total unique violations"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(totalViolations))
             ),
             el("div", {},
@@ -383,7 +383,7 @@
           // For monitoring runs: show last 7 days stats and all commits stats
           const nowEpoch = Math.floor(Date.now() / 1000);
           const weekAgo = nowEpoch - 7*24*60*60;
-          const commitsWeek = (allCommits||[]).filter(cc => (cc.ts||0) >= weekAgo);
+          const commitsWeek = (allCommits||[]).filter(cc => (cc.current_commit_timestamp || 0) >= weekAgo);
           
           // Calculate total unique violations across all commits in last 7 days
           const weekViolationIds = new Set();
@@ -421,7 +421,7 @@
               el("div", {style:"font-size:28px; font-weight:700;"}, String(weekTotalCommits))
             ),
             el("div", {},
-              el("div", {class:"muted"}, "Total violations"),
+              el("div", {class:"muted"}, "Total unique violations"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(weekTotalViolations))
             ),
             el("div", {},
@@ -434,7 +434,7 @@
             )
           ];
           
-          // All commits stats box (same structure as history runs)
+          // All commits stats box (same structure as history stats)
           const allCommitsStatsTitle = "All commits";
           const allTotalCommits = allCommits.length;
           const allCommitsStatsItems = [
@@ -443,7 +443,7 @@
               el("div", {style:"font-size:28px; font-weight:700;"}, String(allTotalCommits))
             ),
             el("div", {},
-              el("div", {class:"muted"}, "Total violations"),
+              el("div", {class:"muted"}, "Total unique violations"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(allTotalViolations))
             ),
             el("div", {},
