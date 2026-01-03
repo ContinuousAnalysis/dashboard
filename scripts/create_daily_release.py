@@ -258,19 +258,32 @@ def main():
     name = f"Latest Artifacts - {now.strftime('%Y-%m-%d %H:%M:%S UTC')}"
     
     # Create release body
+    total_repos_num = len(REPOS)
+    repos_with_artifacts_num = len(artifacts_by_repo)
+    repos_without_artifacts = [repo for repo in REPOS if repo not in artifacts_by_repo]
+    repos_without_artifacts_num = len(repos_without_artifacts)
+    
     body_lines = [
         "Latest artifacts from all repositories",
         "",
-        "## Artifacts",
+        "## Summary",
         "",
-        f"This release contains the latest artifacts from {len(artifacts_by_repo)} repositories:",
+        f"- **Total number of repositories**: {total_repos_num}",
+        f"- **Number of repositories with artifacts**: {repos_with_artifacts_num}",
+        f"- **Number of repositories without artifacts**: {repos_without_artifacts_num}",
         ""
     ]
     
-    for repo_name in sorted(artifacts_by_repo.keys()):
-        artifacts = artifacts_by_repo[repo_name]
-        for artifact in artifacts:
-            body_lines.append(f"- **{repo_name}**: {artifact['name']}")
+    if repos_without_artifacts:
+        body_lines.extend([
+            f"## Repositories without artifacts: {', '.join(repos_without_artifacts)}",
+            ""
+        ])
+    
+    body_lines.extend([
+        f"## Repositories with artifacts: {', '.join(artifacts_by_repo.keys())}",
+        ""
+    ])
     
     body = "\n".join(body_lines)
     
