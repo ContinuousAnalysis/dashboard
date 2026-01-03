@@ -225,6 +225,7 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
     """
     projects_out, total_commits, total_locations = [], 0, 0
     total_new_after_first = 0
+    total_removed_after_first = 0
 
     # Create mappings from repo name to metadata
     repo_url_map = {repo: url for repo, url, _ in REPOS_WITH_METADATA}
@@ -423,12 +424,14 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
                     proj.setdefault("counts", {})["removed_locations_after_first"] = removed_after_first
                     total_new_after_first += new_after_first
+                    total_removed_after_first += removed_after_first
 
         projects_out.append(proj)
 
     totals = {"commits": total_commits, "locations": total_locations}
     if compute_after_first:
         totals["new_locations_after_first"] = total_new_after_first
+        totals["removed_locations_after_first"] = total_removed_after_first
     return {"projects": projects_out, "totals": totals}
 
 def build_dataset_from_local(compute_after_first: bool = False) -> dict:
@@ -442,6 +445,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
     """
     projects_out, total_commits, total_locations = [], 0, 0
     total_new_after_first = 0
+    total_removed_after_first = 0
 
     # Track repo names that are explicitly listed in repos.txt
     configured_repo_names = set()
@@ -451,7 +455,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
         Process a single CSV file into the unified project/commit structure.
         Mutates projects_out / total_* counters in the outer scope.
         """
-        nonlocal total_commits, total_locations, total_new_after_first
+        nonlocal total_commits, total_locations, total_new_after_first, total_removed_after_first
 
         # full may be either "owner/repo" (from repos.txt) or just a repo/file name
         proj = {
@@ -644,6 +648,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
                     proj.setdefault("counts", {})["removed_locations_after_first"] = removed_after_first
                     total_new_after_first += new_after_first
+                    total_removed_after_first += removed_after_first
             except Exception as e:
                 print(f"ERROR: Failed to process {csv_path} for {full}: {e}")
             # Only append the project if we actually found a CSV file.
@@ -681,6 +686,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
     totals = {"commits": total_commits, "locations": total_locations}
     if compute_after_first:
         totals["new_locations_after_first"] = total_new_after_first
+        totals["removed_locations_after_first"] = total_removed_after_first
     return {"projects": projects_out, "totals": totals}
 
 def build():
