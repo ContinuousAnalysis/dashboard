@@ -355,12 +355,10 @@
           });
           const totalViolations = allViolationIds.size;
           
-          const newAfterFirst = (p.counts && typeof p.counts.new_locations_after_first === "number") 
-            ? p.counts.new_locations_after_first 
-            : 0;
-          const removedAfterFirst = (p.counts && typeof p.counts.removed_locations_after_first === "number") 
-            ? p.counts.removed_locations_after_first 
-            : 0;
+          // Sum deltas from all commits after the first commit
+          const commitsAfterFirst = allCommits.length > 1 ? allCommits.slice(1) : [];
+          const newAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_new_violations || 0), 0);
+          const removedAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_old_violations || 0), 0);
           
           statsTitle = "History Stats";
           statsItems = [
@@ -387,56 +385,41 @@
           const weekAgo = nowEpoch - 7*24*60*60;
           const commitsWeek = (allCommits||[]).filter(cc => (cc.ts||0) >= weekAgo);
           
-          // Find the latest commit BEFORE the 7-day window (this is the base for last 7 days)
-          // Filter commits before the 7-day window and find the one with the maximum timestamp
-          const commitsBeforeWeek = (allCommits||[]).filter(cc => (cc.ts||0) < weekAgo);
-          let baseCommitForWeek = null;
-          if (commitsBeforeWeek.length > 0) {
-            // Find commit with maximum timestamp (most recent before the 7-day window)
-            baseCommitForWeek = commitsBeforeWeek.reduce((latest, cc) => {
-              const ccTs = cc.ts || 0;
-              const latestTs = latest.ts || 0;
-              return ccTs > latestTs ? cc : latest;
-            }, commitsBeforeWeek[0]);
-          }
-          const baseCommitViolationIds = baseCommitForWeek ? new Set((baseCommitForWeek.violations || []).map(v => v.id).filter(Boolean)) : new Set();
-          
-          // Get violation IDs from last 7 days commits (unique violations across all commits in last 7 days)
+          // Calculate total unique violations across all commits in last 7 days
           const weekViolationIds = new Set();
           commitsWeek.forEach(cc => {
             (cc.violations || []).forEach(v => {
               if (v.id) weekViolationIds.add(v.id);
             });
           });
-          
-          // Calculate stats for last 7 days: total unique violations across all commits in last 7 days
           const weekTotalViolations = weekViolationIds.size;
           
-          // Calculate new and removed violations for last 7 days (relative to base commit before 7 days)
-          const weekNewAfterFirst = baseCommitForWeek ? Array.from(weekViolationIds).filter(id => !baseCommitViolationIds.has(id)).length : 0;
-          // Removed in last 7 days: violations in base commit that don't appear in last 7 days commits
-          const weekRemovedAfterFirst = baseCommitForWeek ? Array.from(baseCommitViolationIds).filter(id => !weekViolationIds.has(id)).length : 0;
+          // Sum deltas from commits in the last 7 days (same delta-based logic as history stats)
+          const weekNewAfterFirst = commitsWeek.reduce((sum, cc) => sum + (cc.num_new_violations || 0), 0);
+          const weekRemovedAfterFirst = commitsWeek.reduce((sum, cc) => sum + (cc.num_old_violations || 0), 0);
           
-          // For "All commits" stats, use the first commit as base
-          const firstCommit = allCommits.length > 0 ? allCommits[0] : null;
-          const firstCommitViolationIds = firstCommit ? new Set((firstCommit.violations || []).map(v => v.id).filter(Boolean)) : new Set();
-          
-          // Get violation IDs from all commits (total unique violations across all commits since first commit)
+          // Calculate total unique violations across all commits since first commit
           const allViolationIds = new Set();
           allCommits.forEach(cc => {
             (cc.violations || []).forEach(v => {
               if (v.id) allViolationIds.add(v.id);
             });
           });
-          
-          // Calculate stats for all commits: total unique violations across all commits since first commit
           const allTotalViolations = allViolationIds.size;
-          const allNewAfterFirst = firstCommit ? Array.from(allViolationIds).filter(id => !firstCommitViolationIds.has(id)).length : 0;
-          const allRemovedAfterFirst = firstCommit ? Array.from(firstCommitViolationIds).filter(id => !allViolationIds.has(id)).length : 0;
           
-          // Last 7 days stats box
+          // Sum deltas from all commits after the first commit (same logic as history runs)
+          const commitsAfterFirst = allCommits.length > 1 ? allCommits.slice(1) : [];
+          const allNewAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_new_violations || 0), 0);
+          const allRemovedAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_old_violations || 0), 0);
+          
+          // Last 7 days stats box (same structure as history stats)
           statsTitle = "Last 7 days";
+          const weekTotalCommits = commitsWeek.length;
           statsItems = [
+            el("div", {},
+              el("div", {class:"muted"}, "Total commits"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(weekTotalCommits))
+            ),
             el("div", {},
               el("div", {class:"muted"}, "Total violations"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(weekTotalViolations))
@@ -451,9 +434,14 @@
             )
           ];
           
-          // All commits stats box
+          // All commits stats box (same structure as history runs)
           const allCommitsStatsTitle = "All commits";
+          const allTotalCommits = allCommits.length;
           const allCommitsStatsItems = [
+            el("div", {},
+              el("div", {class:"muted"}, "Total commits"),
+              el("div", {style:"font-size:28px; font-weight:700;"}, String(allTotalCommits))
+            ),
             el("div", {},
               el("div", {class:"muted"}, "Total violations"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(allTotalViolations))
