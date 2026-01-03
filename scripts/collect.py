@@ -413,29 +413,12 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                 project_unique_locations = len(all_project_violation_ids)
                 total_locations += project_unique_locations
 
-                # History-specific aggregate: unique locations that appear after the first commit
+                # Sum of deltas across all commits (excluding first commit) for total violations added and removed
                 if compute_after_first and proj["commits"]:
-                    # The "first" commit is the first row in the CSV (already in chronological order)
-                    first_commit = proj["commits"][0]
-                    base_ids = {v.get("id") for v in first_commit.get("violations", [])}
-                    
-                    # Collect ALL violation IDs from ALL commits
-                    all_violation_ids: set = all_project_violation_ids.copy()
-                    
-                    # New violations = violations that exist in the overall history but NOT in the first commit
-                    new_after_first = len(all_violation_ids - base_ids)
-                    # Removed violations = violations that exist in the first commit but NOT in the overall history
-                    removed_after_first = len(base_ids - all_violation_ids)
-                    
-                    # Debug logging
-                    print(f"DEBUG {proj['full_name']}:")
-                    print(f"  Total commits: {len(proj['commits'])}")
-                    print(f"  First commit: {first_commit['sha'][:8]} (ts: {first_commit['ts']}, violations: {len(first_commit.get('violations', []))})")
-                    print(f"  Base IDs count: {len(base_ids)}")
-                    print(f"  All violation IDs count: {len(all_violation_ids)}")
-                    print(f"  New after first: {new_after_first}")
-                    print(f"  Removed after first: {removed_after_first}")
-                    
+                    commits_after_first = proj["commits"][1:] if len(proj["commits"]) > 1 else []
+                    new_after_first = sum(c.get("num_new_violations", 0) for c in commits_after_first)
+                    removed_after_first = sum(c.get("num_old_violations", 0) for c in commits_after_first)
+
                     # Attach per-project counts
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
                     proj.setdefault("counts", {})["removed_locations_after_first"] = removed_after_first
@@ -651,29 +634,12 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                 project_unique_locations = len(all_project_violation_ids)
                 total_locations += project_unique_locations
 
-                # History-specific aggregate: unique locations that appear after the first commit
+                # Sum of deltas across all commits (excluding first commit) for total violations added and removed
                 if compute_after_first and proj["commits"]:
-                    # The "first" commit is the first row in the CSV (already in chronological order)
-                    first_commit = proj["commits"][0]
-                    base_ids = {v.get("id") for v in first_commit.get("violations", [])}
+                    commits_after_first = proj["commits"][1:] if len(proj["commits"]) > 1 else []
+                    new_after_first = sum(c.get("num_new_violations", 0) for c in commits_after_first)
+                    removed_after_first = sum(c.get("num_old_violations", 0) for c in commits_after_first)         
 
-                    # Collect ALL violation IDs from ALL commits
-                    all_violation_ids: set = all_project_violation_ids.copy()
-
-                    # New violations = violations that exist in the overall history but NOT in the first commit
-                    new_after_first = len(all_violation_ids - base_ids)
-                    # Removed violations = violations that exist in the first commit but NOT in the overall history
-                    removed_after_first = len(base_ids - all_violation_ids)
-                    
-                    # Debug logging
-                    print(f"DEBUG {proj['full_name']}:")
-                    print(f"  Total commits: {len(proj['commits'])}")
-                    print(f"  First commit: {first_commit['sha'][:8]} (ts: {first_commit['ts']}, violations: {len(first_commit.get('violations', []))})")
-                    print(f"  Base IDs count: {len(base_ids)}")
-                    print(f"  All violation IDs count: {len(all_violation_ids)}")
-                    print(f"  New after first: {new_after_first}")
-                    print(f"  Removed after first: {removed_after_first}")
-                    
                     # Attach per-project counts
                     proj.setdefault("counts", {})["new_locations_after_first"] = new_after_first
                     proj.setdefault("counts", {})["removed_locations_after_first"] = removed_after_first
