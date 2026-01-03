@@ -168,66 +168,47 @@
         // Latest commit timestamp for quick glance
         const lastTs = allCommits.reduce((m,c)=> Math.max(m, c.ts||0), 0);
         
-        // First line: Commits and Unique violations
-        const pillsLine1 = [
-          el("span", {class:"pill"}, `Commits: ${p.commits.length}`),
-          el("span", {class:"pill"}, `Unique violations: ${uniqueLocations}`)
-        ];
+        // First line: Total commits, 7-day commits (for monitoring), and Unique violations
+        let pillsLine1 = [];
+        if (kind === "hist") {
+          pillsLine1 = [
+            el("span", {class:"pill"}, `Total commits: ${allCommits.length}`),
+            el("span", {class:"pill"}, `Unique violations: ${uniqueLocations}`)
+          ];
+        } else {
+          // Monitoring runs: calculate 7-day commits
+          const nowEpoch = Math.floor(Date.now() / 1000);
+          const weekAgo = nowEpoch - 7*24*60*60;
+          const commitsWeek = allCommits.filter(cc => (cc.current_commit_timestamp || 0) >= weekAgo);
+          pillsLine1 = [
+            el("span", {class:"pill"}, `Total commits: ${allCommits.length}`),
+            el("span", {class:"pill"}, `7-day commits: ${commitsWeek.length}`),
+            el("span", {class:"pill"}, `Unique violations: ${uniqueLocations}`)
+          ];
+        }
         
         // Second line: New after first and Removed after first
         let pillsLine2 = [];
         if (kind === "hist") {
-          // History runs: use project-level counts
-          const newAfterFirst = (p.counts && typeof p.counts.new_locations_after_first === "number") 
-            ? p.counts.new_locations_after_first 
-            : 0;
-          const removedAfterFirst = (p.counts && typeof p.counts.removed_locations_after_first === "number") 
-            ? p.counts.removed_locations_after_first 
-            : 0;
+          // History runs: use same delta-based calculation as History Stats table
+          const commitsAfterFirst = allCommits.length > 1 ? allCommits.slice(1) : [];
+          const newAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_new_violations || 0), 0);
+          const removedAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_old_violations || 0), 0);
+          
           pillsLine2 = [
             el("span", {class:"pill"}, `New after first: ${newAfterFirst}`),
             el("span", {class:"pill"}, `Removed after first: ${removedAfterFirst}`)
           ];
         } else {
-          // Monitoring runs: calculate for last 7 days
-          const nowEpoch = Math.floor(Date.now() / 1000);
-          const weekAgo = nowEpoch - 7*24*60*60;
-          const allCommits = p.commits || [];
-          const commitsWeek = allCommits.filter(cc => (cc.current_commit_timestamp || 0) >= weekAgo);
+          // Monitoring runs: use same delta-based logic as "All commits" stats table
+          const commitsAfterFirst = allCommits.length > 1 ? allCommits.slice(1) : [];
+          const newAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_new_violations || 0), 0);
+          const removedAfterFirst = commitsAfterFirst.reduce((sum, cc) => sum + (cc.num_old_violations || 0), 0);
           
-          // Find the latest commit BEFORE the 7-day window
-          const commitsBeforeWeek = allCommits.filter(cc => (cc.current_commit_timestamp || 0) < weekAgo);
-          let baseCommitForWeek = null;
-          if (commitsBeforeWeek.length > 0) {
-            baseCommitForWeek = commitsBeforeWeek.reduce((latest, cc) => {
-              const ccTs = cc.current_commit_timestamp || 0;
-              const latestTs = latest.current_commit_timestamp || 0;
-              return ccTs > latestTs ? cc : latest;
-            }, commitsBeforeWeek[0]);
-          }
-          
-          if (baseCommitForWeek && commitsWeek.length > 0) {
-            const baseCommitViolationIds = new Set((baseCommitForWeek.violations || []).map(v => v.id).filter(Boolean));
-            const weekViolationIds = new Set();
-            commitsWeek.forEach(cc => {
-              (cc.violations || []).forEach(v => {
-                if (v.id) weekViolationIds.add(v.id);
-              });
-            });
-            
-            const weekNewAfterFirst = Array.from(weekViolationIds).filter(id => !baseCommitViolationIds.has(id)).length;
-            const weekRemovedAfterFirst = Array.from(baseCommitViolationIds).filter(id => !weekViolationIds.has(id)).length;
-            
-            pillsLine2 = [
-              el("span", {class:"pill"}, `New after first: ${weekNewAfterFirst}`),
-              el("span", {class:"pill"}, `Removed after first: ${weekRemovedAfterFirst}`)
-            ];
-          } else {
-            pillsLine2 = [
-              el("span", {class:"pill"}, `New after first: 0`),
-              el("span", {class:"pill"}, `Removed after first: 0`)
-            ];
-          }
+          pillsLine2 = [
+            el("span", {class:"pill"}, `New after first: ${newAfterFirst}`),
+            el("span", {class:"pill"}, `Removed after first: ${removedAfterFirst}`)
+          ];
         }
         
         const pillsContainer = el("div", {style:"margin-top:8px;"});
