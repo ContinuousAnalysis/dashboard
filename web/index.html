@@ -147,8 +147,9 @@
       ];
       
       // Add history-specific total
-      if (kind === "hist" && typeof totals.new_locations_after_first === "number") {
-        summaryParts.push(" • ", el("strong", {}, "New unique violations after first commit: "), String(totals.new_locations_after_first));
+      if (kind === "hist" && typeof totals.new_locations_after_first === "number" && typeof totals.removed_locations_after_first === "number") {
+        summaryParts.push(" • ", el("strong", {}, "New violations after first commit: "), String(totals.new_locations_after_first));
+        summaryParts.push(" • ", el("strong", {}, "Removed violations after first commit: "), String(totals.removed_locations_after_first));
       }
       
       app.append(el("div", {class:"card"}, ...summaryParts));
@@ -372,11 +373,11 @@
               el("div", {style:"font-size:28px; font-weight:700;"}, String(totalViolations))
             ),
             el("div", {},
-              el("div", {class:"muted"}, "New unique violations after first commit"),
+              el("div", {class:"muted"}, "New violations after first commit"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(newAfterFirst))
             ),
             el("div", {},
-              el("div", {class:"muted"}, "Removed unique violations after first commit"),
+              el("div", {class:"muted"}, "Removed violations after first commit"),
               el("div", {style:"font-size:28px; font-weight:700;"}, String(removedAfterFirst))
             )
           ];
