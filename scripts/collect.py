@@ -401,7 +401,17 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     proj["commits"].append(commit_data)
 
                 total_commits += len(commits_map)
-                total_locations += sum(c["counts"]["locations"] for c in proj["commits"])
+                
+                # Calculate unique violations across all commits for this project
+                # Collect all unique violation IDs from all commits
+                all_project_violation_ids = set()
+                for c in proj["commits"]:
+                    for v in c.get("violations", []):
+                        vid = v.get("id")
+                        if vid:
+                            all_project_violation_ids.add(vid)
+                project_unique_locations = len(all_project_violation_ids)
+                total_locations += project_unique_locations
 
                 # History-specific aggregate: unique locations that appear after the first commit
                 if compute_after_first and proj["commits"]:
@@ -410,12 +420,7 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     base_ids = {v.get("id") for v in first_commit.get("violations", [])}
                     
                     # Collect ALL violation IDs from ALL commits
-                    all_violation_ids: set = set()
-                    for c in proj["commits"]:
-                        for v in c.get("violations", []):
-                            vid = v.get("id")
-                            if vid:
-                                all_violation_ids.add(vid)
+                    all_violation_ids: set = all_project_violation_ids.copy()
                     
                     # New violations = violations that exist in the overall history but NOT in the first commit
                     new_after_first = len(all_violation_ids - base_ids)
@@ -634,7 +639,17 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     proj["commits"].append(commit_data)
 
                 total_commits += len(commits_map)
-                total_locations += sum(c["counts"]["locations"] for c in proj["commits"])
+                
+                # Calculate unique violations across all commits for this project
+                # Collect all unique violation IDs from all commits
+                all_project_violation_ids = set()
+                for c in proj["commits"]:
+                    for v in c.get("violations", []):
+                        vid = v.get("id")
+                        if vid:
+                            all_project_violation_ids.add(vid)
+                project_unique_locations = len(all_project_violation_ids)
+                total_locations += project_unique_locations
 
                 # History-specific aggregate: unique locations that appear after the first commit
                 if compute_after_first and proj["commits"]:
@@ -643,12 +658,7 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     base_ids = {v.get("id") for v in first_commit.get("violations", [])}
 
                     # Collect ALL violation IDs from ALL commits
-                    all_violation_ids: set = set()
-                    for c in proj["commits"]:
-                        for v in c.get("violations", []):
-                            vid = v.get("id")
-                            if vid:
-                                all_violation_ids.add(vid)
+                    all_violation_ids: set = all_project_violation_ids.copy()
 
                     # New violations = violations that exist in the overall history but NOT in the first commit
                     new_after_first = len(all_violation_ids - base_ids)
