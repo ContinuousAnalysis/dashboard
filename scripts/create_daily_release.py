@@ -276,12 +276,14 @@ def main():
     
     if repos_without_artifacts:
         body_lines.extend([
-            f"## Repositories without artifacts: {', '.join(repos_without_artifacts)}",
+            f"## Repositories without artifacts:",
+            f"- {', '.join(repos_without_artifacts)}",
             ""
         ])
     
     body_lines.extend([
-        f"## Repositories with artifacts: {', '.join(artifacts_by_repo.keys())}",
+        f"## Repositories with artifacts:",
+        f"- {', '.join(artifacts_by_repo.keys())}",
         ""
     ])
     
