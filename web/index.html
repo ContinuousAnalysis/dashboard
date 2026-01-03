@@ -146,8 +146,8 @@
         " • ", el("strong", {}, "Total unique violations: "), String(totals.locations)
       ];
       
-      // Add history-specific total
-      if (kind === "hist" && typeof totals.new_locations_after_first === "number" && typeof totals.removed_locations_after_first === "number") {
+      // Add totals for new and removed violations after first commit
+      if (typeof totals.new_locations_after_first === "number" && typeof totals.removed_locations_after_first === "number") {
         summaryParts.push(" • ", el("strong", {}, "New violations after first commit: "), String(totals.new_locations_after_first));
         summaryParts.push(" • ", el("strong", {}, "Removed violations after first commit: "), String(totals.removed_locations_after_first));
       }

@@ -740,7 +740,7 @@ def build():
     payload = {
         "generated_at": int(time.time()),
         "datasets": {
-            "monitoring": build_dataset(MON_PREFIXES),
+            "monitoring": build_dataset(MON_PREFIXES, compute_after_first=True),
             "history":    build_dataset_from_local(compute_after_first=True)
         }
     }
