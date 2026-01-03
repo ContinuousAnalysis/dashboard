@@ -223,6 +223,9 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
     Uses ONLY 'new_violations' (blank => zero violations).
     Aggregates distinct specs per (file,line).
     """
+
+    EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+
     projects_out, total_commits, total_locations = [], 0, 0
     total_new_after_first = 0
     total_removed_after_first = 0
@@ -286,27 +289,28 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                         continue
                     ts  = to_epoch(r.get("timestamp", ""))
                     new_v = str(r.get("new_violations", "") or "").strip()
+                    old_v = str(r.get("old_violations", "") or "").strip()
+                    current_v = str(r.get("current_violations", "") or "").strip()
                     coverage = r.get("coverage", "")
                     commit_msg = r.get("current_commit_message", "")
                     commit_ts = r.get("current_commit_timestamp", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
                     
-                    # Read violation counts from CSV
-                    num_current = r.get("num_current_violations", "")
-                    num_new = r.get("num_new_violations", "")
-                    num_old = r.get("num_old_violations", "")
-                    
-                    def parse_int_or_zero(val):
-                        if val is None or str(val).strip() == "" or str(val).strip().lower() == "nan":
-                            return 0
-                        try:
-                            return int(float(str(val).strip()))
-                        except (ValueError, TypeError):
-                            return 0
-                    
-                    num_current_int = parse_int_or_zero(num_current)
-                    num_new_int = parse_int_or_zero(num_new)
-                    num_old_int = parse_int_or_zero(num_old)
+                    # Parse and count violations from columns
+                    new_locs = parse_vloc_cell(new_v) if new_v else []
+                    old_locs = parse_vloc_cell(old_v) if old_v else []
+                    current_locs = parse_vloc_cell(current_v) if current_v else []
+
+                    # Count unique violations by (file, line) - not by spec
+                    def count_unique_violations(locs_list):
+                        unique_locs = set()
+                        for v in locs_list:
+                            if EXCLUDED_PATH not in v.get("file", ""):
+                                unique_locs.add((v["file"], v["line"]))
+                        return len(unique_locs)
+                    num_new_int = count_unique_violations(new_locs)
+                    num_old_int = count_unique_violations(old_locs)
+                    num_current_int = count_unique_violations(current_locs)
 
                     if sha not in commits_map:
                         commits_map[sha] = {
@@ -350,8 +354,6 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                             commits_map[sha]["current_commit_timestamp"] = commit_ts_epoch
 
                 # Aggregate to output format
-                EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
-
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
                     for v in obj["violations_raw"]:
@@ -443,6 +445,9 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
     Uses ONLY 'new_violations' (blank => zero violations).
     Aggregates distinct specs per (file,line).
     """
+
+    EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+
     projects_out, total_commits, total_locations = [], 0, 0
     total_new_after_first = 0
     total_removed_after_first = 0
@@ -488,29 +493,30 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                         continue
                     ts  = to_epoch(r.get("timestamp", ""))
                     new_v = str(r.get("new_violations", "") or "").strip()
+                    old_v = str(r.get("old_violations", "") or "").strip()
+                    current_v = str(r.get("current_violations", "") or "").strip()
                     coverage = r.get("coverage", "")
                     commit_msg = r.get("current_commit_message", "")
                     commit_ts = r.get("current_commit_timestamp", "")
                     num_python_files = r.get("num_python_file_changed", "")
                     github_url_val = r.get("github_url", "")
                     locs = parse_vloc_cell(new_v) if new_v else []
+                    
+                    # Parse and count violations from columns
+                    new_locs = parse_vloc_cell(new_v) if new_v else []
+                    old_locs = parse_vloc_cell(old_v) if old_v else []
+                    current_locs = parse_vloc_cell(current_v) if current_v else []
 
-                    # Read violation counts from CSV
-                    num_current = r.get("num_current_violations", "")
-                    num_new = r.get("num_new_violations", "")
-                    num_old = r.get("num_old_violations", "")
-
-                    def parse_int_or_zero(val):
-                        if val is None or str(val).strip() == "" or str(val).strip().lower() == "nan":
-                            return 0
-                        try:
-                            return int(float(str(val).strip()))
-                        except (ValueError, TypeError):
-                            return 0
-
-                    num_current_int = parse_int_or_zero(num_current)
-                    num_new_int = parse_int_or_zero(num_new)
-                    num_old_int = parse_int_or_zero(num_old)
+                    # Count unique violations by (file, line) - not by spec
+                    def count_unique_violations(locs_list):
+                        unique_locs = set()
+                        for v in locs_list:
+                            if EXCLUDED_PATH not in v.get("file", ""):
+                                unique_locs.add((v["file"], v["line"]))
+                        return len(unique_locs)
+                    num_new_int = count_unique_violations(new_locs)
+                    num_old_int = count_unique_violations(old_locs)
+                    num_current_int = count_unique_violations(current_locs)
 
                     if sha not in commits_map:
                         commits_map[sha] = {
@@ -565,9 +571,6 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     # Store github_url if present
                     if github_url_val and str(github_url_val).strip() and str(github_url_val).strip().lower() != "nan":
                         commits_map[sha]["github_url"] = str(github_url_val).strip()
-
-                # Aggregate to output format
-                EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
 
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
