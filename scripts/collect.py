@@ -155,6 +155,48 @@ def parse_vloc_cell(cell: str) -> List[dict]:
         out.append({"spec": spec, "file": file_part, "line": line})
     return out
 
+def parse_vloc_cell_with_occurrence(cell: str) -> List[dict]:
+    """
+    Parse strings like:
+      Spec:/path/file.py:34=404;OtherSpec:/usr/lib/.../x.py:495=15
+    The =occurrence_count part is ignored.
+    Returns: list of dicts {spec, file, line}
+    """
+    out = []
+    if cell is None:
+        return out
+    s = str(cell).strip()
+    if not s:
+        return out
+
+    for raw in ENTRY_SEP.split(s.strip("; ")):
+        if not raw:
+            continue
+        # Strip occurrence count (e.g., "=404") if present
+        if "=" in raw:
+            raw = raw.rsplit("=", 1)[0]
+        # Expect "<spec>:<path>:<line>" but <path> may contain colons
+        if ":" not in raw:
+            continue
+        left2, line_s = raw.rsplit(":", 1)
+        try:
+            line = int(line_s.strip())
+        except Exception:
+            continue
+
+        if ":" in left2:
+            spec, file_part = left2.split(":", 1)
+        else:
+            spec, file_part = "", left2
+
+        spec = (spec or "Unknown").strip()
+        file_part = _normalize_path(file_part.strip())
+        if not file_part:
+            continue
+
+        out.append({"spec": spec, "file": file_part, "line": line})
+    return out
+
 def to_epoch(ts_val) -> Optional[int]:
     """
     Parse many timestamp formats to epoch seconds (UTC).
@@ -299,7 +341,8 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                     # Parse and count violations from columns
                     new_locs = parse_vloc_cell(new_v) if new_v else []
                     old_locs = parse_vloc_cell(old_v) if old_v else []
-                    current_locs = parse_vloc_cell(current_v) if current_v else []
+                    # Use current_violations with occurrence format for counting only
+                    current_locs = parse_vloc_cell_with_occurrence(current_v) if current_v else []
 
                     # Count unique violations by (file, line) - not by spec
                     def count_unique_violations(locs_list):
@@ -377,7 +420,7 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
                         })
 
                     # Use num_current_violations from CSV for counts.locations (total current violations)
-                    # The violations list only contains new violations from new_violations column, not all current violations
+                    # The violations list only contains new violations from new_violations column
                     commit_data = {
                         "sha": sha,
                         "current_commit_sha": sha,
@@ -505,7 +548,8 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     # Parse and count violations from columns
                     new_locs = parse_vloc_cell(new_v) if new_v else []
                     old_locs = parse_vloc_cell(old_v) if old_v else []
-                    current_locs = parse_vloc_cell(current_v) if current_v else []
+                    # Use current_violations with occurrence format for counting only
+                    current_locs = parse_vloc_cell_with_occurrence(current_v) if current_v else []
 
                     # Count unique violations by (file, line) - not by spec
                     def count_unique_violations(locs_list):
