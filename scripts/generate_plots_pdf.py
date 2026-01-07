@@ -249,7 +249,7 @@ def generate_latex_document(project_plots):
 \\centering
 \\hypertarget{{proj:{project_slug}}}{{}}%
 \\includegraphics[width=\\textwidth]{{plots_temp/{plot_filename}}}
-\\caption{{\\footnotesize Commits: {num_commits}, Max\\_Violations: {max_violations}, \\href{{{dashboard_url}}}{{Dashboard}}}}
+\\caption{{\\footnotesize Commits: {num_commits}, Max\\_Violations: {max_violations}, \\href{{{dashboard_url}}}{{Dashboard\\_Link}}}}
 \\end{{subfigure}}
 """
             
