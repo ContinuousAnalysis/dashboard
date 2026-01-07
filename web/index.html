@@ -25,6 +25,8 @@
     .tab { padding:8px 12px; border:1px solid var(--tab); border-bottom:none; border-radius:8px 8px 0 0; background:#fafafa; }
     .tab.active { background:white; border-color: var(--active); color: var(--active); font-weight:600; }
     .controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
+    svg a circle { transition: opacity 0.2s ease, stroke-width 0.2s ease; }
+    svg a:hover circle { opacity: 0.8; stroke: #1d4ed8; stroke-width: 1.5; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha256-LAEQ8l5cCwX6yFT1s1m8QX7wKjIvmyuHJ0v+qK2qTn0=" crossorigin="anonymous"></script>
 </head>
@@ -318,7 +320,23 @@
           yticksP.map(t => svgEl("text", {x:String(Mp.l - 8), y:String(t.y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"end"}, String(t.v))),
           xtIdx.map(i => svgEl("text", {x:String(toXp(i)), y:String(Hp - Mp.b + 16), fill:"#6b7280", "font-size":"10", "text-anchor":"middle"}, labelsAll[i] || String(i+1))),
           svgEl("path", {d: dp, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
-          valuesAll.map((v,i) => svgEl("circle", {cx:String(toXp(i)), cy:String(toYp(v)), r:"2.5", fill:"#2563eb"}, svgEl("title", {}, `${labelsAll[i] || (i+1)}: ${v}`)))
+          valuesAll.map((v,i) => {
+            const commit = allCommits[i];
+            const commitSha = commit ? (commit.current_commit_sha || commit.sha) : null;
+            const circle = svgEl("circle", {
+              cx:String(toXp(i)), 
+              cy:String(toYp(v)), 
+              r:"2.5", 
+              fill:"#2563eb",
+              style:"cursor:pointer;"
+            }, svgEl("title", {}, `${labelsAll[i] || (i+1)}: ${v}`));
+            if (commitSha) {
+              const link = svgEl("a", {href:`#/${kind}/p/${p.slug}/c/${commitSha}`});
+              link.appendChild(circle);
+              return link;
+            }
+            return circle;
+          })
         );
         // Stats calculation
         let statsTitle, statsItems;
