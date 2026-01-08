@@ -368,15 +368,12 @@
             
             circle.addEventListener("mouseenter", showTooltip);
             circle.addEventListener("mouseleave", hideTooltip);
-            circle.addEventListener("mousedown", hideTooltip); // Hide tooltip when clicking
-            circle.addEventListener("click", hideTooltip); // Hide tooltip on click
+            circle.addEventListener("mousedown", hideTooltip);
             
             // Wrap circle in link for click navigation
             if (fullSha) {
               const link = svgEl("a", {href:`#/${kind}/p/${p.slug}/c/${fullSha}`});
               link.appendChild(circle);
-              // Also hide tooltip when link is clicked
-              link.addEventListener("click", hideTooltip);
               return link;
             }
             return circle;
