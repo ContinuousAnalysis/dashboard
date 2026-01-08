@@ -335,6 +335,9 @@
           document.body.appendChild(tooltip);
         }
         
+        // Track if we're in a click action to prevent tooltip from showing
+        let isClicking = false;
+        
         const projChart = svgEl("svg", {width:String(Wp), height:String(Hp), viewBox:`0 0 ${Wp} ${Hp}`},
           yticksP.map(t => svgEl("line", {x1:String(Mp.l), y1:String(t.y), x2:String(Wp - Mp.r), y2:String(t.y), stroke:"#eef0f3"})),
           svgEl("line", {x1:String(Mp.l), y1:String(Mp.t), x2:String(Mp.l), y2:String(Hp - Mp.b), stroke:"#cbd5e1"}),
@@ -356,6 +359,7 @@
             
             // Add tooltip functionality for hover
             const showTooltip = (e) => {
+              if (isClicking) return; // Don't show tooltip if we're clicking
               tooltip.innerHTML = `<strong>Commit: ${fullSha || commitSha}</strong><span>Violations: ${v}</span>`;
               tooltip.style.display = "block";
               tooltip.style.left = (e.clientX + 10) + "px";
@@ -368,12 +372,25 @@
             
             circle.addEventListener("mouseenter", showTooltip);
             circle.addEventListener("mouseleave", hideTooltip);
-            circle.addEventListener("mousedown", hideTooltip);
             
             // Wrap circle in link for click navigation
             if (fullSha) {
               const link = svgEl("a", {href:`#/${kind}/p/${p.slug}/c/${fullSha}`});
               link.appendChild(circle);
+              // Hide tooltip and set clicking flag when user starts clicking
+              link.addEventListener("mousedown", () => {
+                isClicking = true;
+                hideTooltip();
+              });
+              link.addEventListener("click", () => {
+                hideTooltip();
+                // Reset flag after a short delay
+                setTimeout(() => { isClicking = false; }, 100);
+              });
+              link.addEventListener("mouseleave", () => {
+                // Reset flag when mouse leaves
+                setTimeout(() => { isClicking = false; }, 50);
+              });
               return link;
             }
             return circle;
