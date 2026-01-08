@@ -25,8 +25,22 @@
     .tab { padding:8px 12px; border:1px solid var(--tab); border-bottom:none; border-radius:8px 8px 0 0; background:#fafafa; }
     .tab.active { background:white; border-color: var(--active); color: var(--active); font-weight:600; }
     .controls { display:flex; flex-wrap:wrap; align-items:center; gap:8px; }
-    svg a circle { transition: opacity 0.2s ease, stroke-width 0.2s ease; }
-    svg a:hover circle { opacity: 0.8; stroke: #1d4ed8; stroke-width: 1.5; }
+    svg circle { transition: opacity 0.2s ease, stroke-width 0.2s ease; }
+    svg circle:hover { opacity: 0.8; stroke: #1d4ed8; stroke-width: 1.5; }
+    .commit-tooltip {
+      position: absolute;
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 12px;
+      pointer-events: none;
+      z-index: 1000;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    }
+    .commit-tooltip strong { display: block; margin-bottom: 4px; }
+    .commit-tooltip span { display: block; }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha256-LAEQ8l5cCwX6yFT1s1m8QX7wKjIvmyuHJ0v+qK2qTn0=" crossorigin="anonymous"></script>
 </head>
@@ -313,6 +327,14 @@
         // Sparse x ticks: first, quarter, half, three-quarter, last
         const xi = valuesAll.length - 1;
         const xtIdx = Array.from(new Set([0, Math.floor(xi*0.25), Math.floor(xi*0.5), Math.floor(xi*0.75), xi])).filter(i => i >= 0);
+        
+        // Create tooltip element once
+        let tooltip = document.querySelector(".commit-tooltip");
+        if (!tooltip) {
+          tooltip = el("div", {class:"commit-tooltip", style:"display:none;"});
+          document.body.appendChild(tooltip);
+        }
+        
         const projChart = svgEl("svg", {width:String(Wp), height:String(Hp), viewBox:`0 0 ${Wp} ${Hp}`},
           yticksP.map(t => svgEl("line", {x1:String(Mp.l), y1:String(t.y), x2:String(Wp - Mp.r), y2:String(t.y), stroke:"#eef0f3"})),
           svgEl("line", {x1:String(Mp.l), y1:String(Mp.t), x2:String(Mp.l), y2:String(Hp - Mp.b), stroke:"#cbd5e1"}),
@@ -322,16 +344,34 @@
           svgEl("path", {d: dp, fill:"none", stroke:"#2563eb", "stroke-width":"2"}),
           valuesAll.map((v,i) => {
             const commit = allCommits[i];
-            const commitSha = commit ? (commit.current_commit_sha || commit.sha) : null;
+            const commitSha = commit ? (commit.current_commit_sha || commit.sha) : labelsAll[i] || String(i+1);
+            const fullSha = commit ? (commit.current_commit_sha || commit.sha) : null;
             const circle = svgEl("circle", {
               cx:String(toXp(i)), 
               cy:String(toYp(v)), 
               r:"2.5", 
               fill:"#2563eb",
               style:"cursor:pointer;"
-            }, svgEl("title", {}, `${labelsAll[i] || (i+1)}: ${v}`));
-            if (commitSha) {
-              const link = svgEl("a", {href:`#/${kind}/p/${p.slug}/c/${commitSha}`});
+            });
+            
+            // Add tooltip functionality for hover
+            const showTooltip = (e) => {
+              tooltip.innerHTML = `<strong>Commit: ${fullSha || commitSha}</strong><span>Violations: ${v}</span>`;
+              tooltip.style.display = "block";
+              tooltip.style.left = (e.clientX + 10) + "px";
+              tooltip.style.top = (e.clientY - 10) + "px";
+            };
+            
+            const hideTooltip = () => {
+              tooltip.style.display = "none";
+            };
+            
+            circle.addEventListener("mouseenter", showTooltip);
+            circle.addEventListener("mouseleave", hideTooltip);
+            
+            // Wrap circle in link for click navigation
+            if (fullSha) {
+              const link = svgEl("a", {href:`#/${kind}/p/${p.slug}/c/${fullSha}`});
               link.appendChild(circle);
               return link;
             }
