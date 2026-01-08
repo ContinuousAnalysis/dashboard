@@ -47,8 +47,6 @@ def generate_plots_pdf():
         project_df = project_df.sort_values('csv_row_order').reset_index(drop=True)
         
         x_values = range(len(project_df))
-        x_labels = [sha[:7] if pd.notna(sha) else str(i) for i, sha in enumerate(project_df['commit_sha'])]
-        
         y_values = project_df['num_unique_violations'].fillna(0).astype(int).tolist()
         
         # Create plot (larger size for better visibility)
@@ -58,21 +56,38 @@ def generate_plots_pdf():
         ax.plot(x_values, y_values, marker='o', markersize=2, linewidth=1, color='#2563eb')
         
         # Formatting (larger fonts for better readability)
-        ax.set_xlabel('Commit', fontsize=12)
+        ax.set_xlabel('Commit Number', fontsize=12)
         ax.set_ylabel('Violations', fontsize=12)
         ax.set_title(f'{project_name}', fontsize=13, fontweight='bold')
         ax.grid(True, alpha=0.3, linestyle='--')
         
-        # Set x-axis ticks (show first, quarter, half, three-quarter, last)
+        # Set x-axis ticks at intervals of 50 (1, 50, 100, 150, ...)
         n = len(x_values)
-        if n > 1:
-            tick_indices = [0, n//4, n//2, 3*n//4, n-1]
-            tick_indices = sorted(set(tick_indices))  # Remove duplicates
-            ax.set_xticks([x_values[i] for i in tick_indices])
-            ax.set_xticklabels([x_labels[i] for i in tick_indices], rotation=0, fontsize=10)
-        elif n == 1:
-            ax.set_xticks([0])
-            ax.set_xticklabels([x_labels[0]], fontsize=10)
+        if n > 0:
+            # Generate tick positions: 0, 49, 99, 149, ... (0-indexed positions)
+            # But also include the last commit if it's not already at an interval of 50
+            tick_interval = 50
+            tick_positions = []
+            tick_labels = []
+            
+            # Start with position 0 (label 1)
+            tick_positions.append(0)
+            tick_labels.append('1')
+            
+            # Add ticks at intervals of 50
+            pos = tick_interval - 1  # Position 49 (0-indexed) = label 50 (1-indexed)
+            while pos < n:
+                tick_positions.append(pos)
+                tick_labels.append(str(pos + 1))  # Convert to 1-indexed label
+                pos += tick_interval
+            
+            # Add the last commit if it's not already included
+            if n > 1 and (n - 1) not in tick_positions:
+                tick_positions.append(n - 1)
+                tick_labels.append(str(n))
+            
+            ax.set_xticks(tick_positions)
+            ax.set_xticklabels(tick_labels, rotation=0, fontsize=10)
         
         # Set y-axis to show only integer ticks
         from matplotlib.ticker import MaxNLocator, FuncFormatter
@@ -82,6 +97,16 @@ def generate_plots_pdf():
         
         # Calculate max violations for the tuple
         max_violations = max(y_values) if y_values else 0
+        min_violations = min(y_values) if y_values else 0
+        
+        # Fix y-axis range for flat plots (when all values are the same)
+        if max_violations == min_violations:
+            padding = 1  # Small padding for flat plots
+            ax.set_ylim(min_violations - padding, max_violations + padding)
+        else:
+            # For non-flat plots, use minimal padding to show only the data range
+            padding = 0.5  # Small padding (0.5 units)
+            ax.set_ylim(min_violations - padding, max_violations + padding)
         
         # Adjust y-axis label font size
         ax.tick_params(axis='y', labelsize=11)
@@ -249,7 +274,7 @@ def generate_latex_document(project_plots):
 \\centering
 \\hypertarget{{proj:{project_slug}}}{{}}%
 \\includegraphics[width=\\textwidth]{{plots_temp/{plot_filename}}}
-\\caption{{\\footnotesize Commits: {num_commits}, Max\\_Violations: {max_violations}, \\href{{{dashboard_url}}}{{Dashboard\\_Link}}}}
+\\caption{{\\footnotesize Commits\\_Count: {num_commits}, Max\\_Violations: {max_violations}, \\href{{{dashboard_url}}}{{Link}}}}
 \\end{{subfigure}}
 """
             
