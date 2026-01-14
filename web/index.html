@@ -514,6 +514,17 @@
             // Y-axis labels
             if (plotType === "violations_only" || plotType === "both") {
               plotElements.push(...yticksP.map(t => svgEl("text", {x:String(Mp.l - 8), y:String(t.y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"end"}, String(t.v))));
+              // Y-axis label for violations (left side, rotated)
+              const violationsLabelY = Mp.t + innerHp / 2;
+              plotElements.push(svgEl("text", {
+                x:String(Mp.l - 25),
+                y:String(violationsLabelY),
+                fill:"#374151",
+                "font-size":"12",
+                "font-weight":"600",
+                "text-anchor":"middle",
+                transform:`rotate(-90 ${Mp.l - 25} ${violationsLabelY})`
+              }, "Violations"));
             }
             
             // X-axis labels
@@ -585,6 +596,19 @@
                 const y = Mp.t + (innerHp - (i / timeTicks) * innerHp);
                 plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(1)));
               }
+              
+              // Y-axis label for time (right side, rotated)
+              const timeLabelY = Mp.t + innerHp / 2;
+              const timeLabelX = Wp - Mp.r + 25;
+              plotElements.push(svgEl("text", {
+                x:String(timeLabelX),
+                y:String(timeLabelY),
+                fill:"#374151",
+                "font-size":"12",
+                "font-weight":"600",
+                "text-anchor":"middle",
+                transform:`rotate(90 ${timeLabelX} ${timeLabelY})`
+              }, "Time (s)"));
               
               // Add color legend for time plots (only for times_only and both)
               // Legend and note are now rendered outside the SVG, above the graph
