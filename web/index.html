@@ -711,25 +711,29 @@
           plotContainer.appendChild(plot);
           
           // Show/hide legend based on plot type (3 columns, 1 row layout)
-          if (currentPlotType === "times_only" || currentPlotType === "both") {
+          if (currentPlotType === "violations_only" || currentPlotType === "times_only" || currentPlotType === "both") {
             legendContainer.style.display = "flex";
             legendContainer.style.flexDirection = "row";
             legendContainer.style.gap = "24px";
             legendContainer.style.justifyContent = "center";
             legendContainer.innerHTML = "";
             
-            const legendItems = currentPlotType === "both" 
+            const legendItems = currentPlotType === "violations_only"
               ? [
-                  {color: "#2563eb", label: "Violations"},
-                  {color: "#dc2626", label: "Original Time"},
-                  {color: "#16a34a", label: "Pymop Time"},
-                  {color: "#fbbf24", label: "Dylin Time"}
+                  {color: "#2563eb", label: "Violations"}
                 ]
-              : [
-                  {color: "#dc2626", label: "Original Time"},
-                  {color: "#16a34a", label: "Pymop Time"},
-                  {color: "#fbbf24", label: "Dylin Time"}
-                ];
+              : currentPlotType === "both" 
+                ? [
+                    {color: "#2563eb", label: "Violations"},
+                    {color: "#dc2626", label: "Original Time"},
+                    {color: "#16a34a", label: "Pymop Time"},
+                    {color: "#fbbf24", label: "Dylin Time"}
+                  ]
+                : [
+                    {color: "#dc2626", label: "Original Time"},
+                    {color: "#16a34a", label: "Pymop Time"},
+                    {color: "#fbbf24", label: "Dylin Time"}
+                  ];
             
             legendItems.forEach((item) => {
               const legendItem = el("div", {style:"display:flex; align-items:center; gap:6px;"},
