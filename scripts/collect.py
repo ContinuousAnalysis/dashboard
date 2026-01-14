@@ -9,7 +9,6 @@ ROOT = pathlib.Path(__file__).resolve().parents[1]
 OUT  = ROOT / "dist"
 WEB  = ROOT / "web"
 DATA = ROOT / "data"
-CUMULATIVE_DIR = ROOT / "cumulative_results"
 OUT.mkdir(parents=True, exist_ok=True)
 
 CONFIG = json.loads((ROOT / "config" / "settings.json").read_text())
@@ -197,49 +196,6 @@ def parse_vloc_cell_with_occurrence(cell: str) -> List[dict]:
 
         out.append({"spec": spec, "file": file_part, "line": line})
     return out
-
-def parse_time(val) -> float:
-    """Parse time value, treating "x" or missing values as -5.0 (tool failure)."""
-    if pd.isna(val) or str(val).strip().lower() in ['x', '', 'nan']:
-        return -5.0
-    try:
-        return float(val)
-    except (ValueError, TypeError):
-        return -5.0
-
-def load_cumulative_times(project_name: str) -> Dict[str, Dict[str, float]]:
-    """Load end-to-end times from cumulative results CSV for a project."""
-    # Extract repo name from project name (e.g., "owner/repo" -> "repo")
-    repo_name = project_name.split('/')[-1] if '/' in project_name else project_name
-    cumulative_csv = CUMULATIVE_DIR / f"{repo_name}-cumulative-results.csv"
-    
-    if not cumulative_csv.exists():
-        return {}
-    
-    try:
-        cum_df = pd.read_csv(cumulative_csv, dtype=str).fillna("")
-        cum_df.columns = [c.strip().lower() for c in cum_df.columns]
-        
-        # Group by commit_sha and algorithm to get times
-        times_by_commit = {}
-        for _, row in cum_df.iterrows():
-            commit_sha = str(row.get('commit_sha', '')).strip()
-            algorithm = str(row.get('algorithm', '')).strip().lower()
-            e2e_time = parse_time(row.get('end_to_end_time', ''))
-            
-            if not commit_sha:
-                continue
-            
-            if commit_sha not in times_by_commit:
-                times_by_commit[commit_sha] = {'original': -5.0, 'pymop': -5.0, 'dylin': -5.0}
-            
-            if algorithm in ['original', 'pymop', 'dylin']:
-                times_by_commit[commit_sha][algorithm] = e2e_time
-        
-        return times_by_commit
-    except Exception as e:
-        print(f"Warning: Could not load cumulative results for {project_name}: {e}")
-        return {}
 
 def to_epoch(ts_val) -> Optional[int]:
     """
@@ -659,14 +615,6 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     # Store github_url if present
                     if github_url_val and str(github_url_val).strip() and str(github_url_val).strip().lower() != "nan":
                         commits_map[sha]["github_url"] = str(github_url_val).strip()
-                
-                # Load time data from cumulative results (only for history runs)
-                times_by_commit = load_cumulative_times(full)
-                
-                # Add time data to commits_map
-                for sha in commits_map:
-                    if sha in times_by_commit:
-                        commits_map[sha]["end_to_end_times"] = times_by_commit[sha]
 
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
@@ -721,10 +669,6 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
                     # Add github_url if available (for history runs)
                     if obj.get("github_url") is not None:
                         commit_data["github_url"] = obj["github_url"]
-                    
-                    # Add end-to-end times if available (for history runs)
-                    if obj.get("end_to_end_times") is not None:
-                        commit_data["end_to_end_times"] = obj["end_to_end_times"]
                     
                     proj["commits"].append(commit_data)
 
