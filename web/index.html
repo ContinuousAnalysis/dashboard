@@ -489,7 +489,8 @@
           
             // Function to create plot based on type
           const createPlot = (plotType, origTimes, pymopTimes, dylinTimes, hasTime) => {
-            const Wp = 800, Hp = 220, Mp = {t:16, r:16, b:40, l:40};
+            // Increase right margin to accommodate time y-axis labels and legend
+            const Wp = 800, Hp = 220, Mp = {t:16, r:70, b:40, l:40};
             const innerWp = Wp - Mp.l - Mp.r;
             const innerHp = Hp - Mp.t - Mp.b;
             const stepXp = valuesAll.length > 1 ? innerWp / (valuesAll.length - 1) : 0;
@@ -582,7 +583,49 @@
               for (let i = 0; i <= timeTicks; i++) {
                 const val = yMinTime + (yMaxTime - yMinTime) * (i / timeTicks);
                 const y = Mp.t + (innerHp - (i / timeTicks) * innerHp);
-                plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 8), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(1)));
+                plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(1)));
+              }
+              
+              // Add color legend for time plots (only for times_only and both)
+              if (plotType === "times_only" || plotType === "both") {
+                const legendY = Mp.t + 8;
+                const legendX = Wp - Mp.r - 85;
+                const legendItems = [
+                  {color: "#dc2626", label: "Original"},
+                  {color: "#16a34a", label: "Pymop"},
+                  {color: "#fbbf24", label: "Dylin"}
+                ];
+                
+                legendItems.forEach((item, idx) => {
+                  // Color indicator (small square)
+                  plotElements.push(svgEl("rect", {
+                    x: String(legendX),
+                    y: String(legendY + idx * 16),
+                    width: "10",
+                    height: "10",
+                    fill: item.color,
+                    stroke: "#cbd5e1",
+                    "stroke-width": "0.5"
+                  }));
+                  // Label text
+                  plotElements.push(svgEl("text", {
+                    x: String(legendX + 14),
+                    y: String(legendY + idx * 16 + 8),
+                    fill: "#374151",
+                    "font-size": "9",
+                    "text-anchor": "start"
+                  }, item.label));
+                });
+                
+                // Add note about -5 indicating tool failure
+                plotElements.push(svgEl("text", {
+                  x: String(Mp.l + 5),
+                  y: String(Mp.t + 12),
+                  fill: "#6b7280",
+                  "font-size": "9",
+                  "text-anchor": "start",
+                  "font-style": "italic"
+                }, "Note: -5 indicates tool failure"));
               }
               
               // Plot time lines
@@ -640,7 +683,9 @@
               }
             }
             
-            return svgEl("svg", {width:String(Wp), height:String(Hp), viewBox:`0 0 ${Wp} ${Hp}`}, ...plotElements);
+            // Use wider viewBox to ensure right y-axis labels are visible
+            const viewBoxWidth = (plotType === "times_only" || plotType === "both") ? Wp + 20 : Wp;
+            return svgEl("svg", {width:String(Wp), height:String(Hp), viewBox:`0 0 ${viewBoxWidth} ${Hp}`}, ...plotElements);
           };
         
         // Create plot switcher
@@ -735,7 +780,7 @@
           // Layout: chart (left) + status boards (right) - width matches Project Metadata box above
           const row = el("div", {style:"display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; width:100%; box-sizing:border-box;"});
           const chartCard = el("div", {class:"card", style:"flex:1; min-width:520px;"},
-            el("h3", {}, "Violations trend per commit"),
+            el("h3", {}, "Violations/End-to-end Times Trend Per Commit"),
             plotSwitcher,
             plotContainer
           );
@@ -799,6 +844,7 @@
       // Add Files Changed column for history runs
       if (kind === "hist") {
         tableHeaders.push(el("th", {}, "Files Changed"));
+        tableHeaders.push(el("th", {}, "Monitoring Time"));
       }
       
       tableHeaders.push(el("th", {}, "Unique Violations"));
@@ -865,12 +911,45 @@
               el("td", {style:"min-width:140px;"}, displayTimestamp)
             ];
             
-            // Add Files Changed column for history runs
+            // Add Files Changed and Monitoring Time columns for history runs
             if (kind === "hist") {
               const numFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
                 ? String(c.num_python_file_changed) 
                 : "—";
               rowCells.push(el("td", {style:"min-width:100px;"}, numFiles));
+              
+              // Calculate Monitoring Time (sum of pymop + dylin)
+              // Treat -5 as 0 for both pymop and dylin (so failures don't affect the sum)
+              const parseTime = (val) => {
+                if (!val || val === "x" || val === "" || val === "nan" || val === null || val === undefined) {
+                  return -5.0;
+                }
+                const num = parseFloat(val);
+                return isNaN(num) ? -5.0 : num;
+              };
+              
+              let monitoringTime = "—";
+              if (c.end_to_end_times) {
+                let pymopTime = parseTime(c.end_to_end_times.pymop);
+                let dylinTime = parseTime(c.end_to_end_times.dylin);
+                // Treat -5 as 0 for both (so failures don't affect the sum)
+                if (pymopTime <= -5) {
+                  pymopTime = 0;
+                }
+                if (dylinTime <= -5) {
+                  dylinTime = 0;
+                }
+                
+                // Calculate sum: pymop + dylin
+                const sum = pymopTime + dylinTime;
+                if (sum > 0) {
+                  monitoringTime = sum.toFixed(2) + "s";
+                } else {
+                  // Both were -5 (now 0), so sum is 0
+                  monitoringTime = "—";
+                }
+              }
+              rowCells.push(el("td", {style:"min-width:120px;"}, monitoringTime));
             }
             
             rowCells.push(el("td", {style:"min-width:120px; text-align:left;"}, ...violationParts));
@@ -933,6 +1012,38 @@
           ? String(c.num_python_file_changed) 
           : "—";
         commitInfo.push(el("div", {}, el("strong", {}, "Files Changed: "), numFiles));
+        
+        // Add End-to-end times
+        const parseTime = (val) => {
+          if (!val || val === "x" || val === "" || val === "nan" || val === null || val === undefined) {
+            return -5.0;
+          }
+          const num = parseFloat(val);
+          return isNaN(num) ? -5.0 : num;
+        };
+        
+        if (c.end_to_end_times) {
+          const origTime = parseTime(c.end_to_end_times.original);
+          const pymopTime = parseTime(c.end_to_end_times.pymop);
+          const dylinTime = parseTime(c.end_to_end_times.dylin);
+          
+          commitInfo.push(el("div", {}, 
+            el("strong", {}, "Original End-to-end time: "), 
+            origTime > -5 ? origTime.toFixed(2) + "s" : "x"
+          ));
+          commitInfo.push(el("div", {}, 
+            el("strong", {}, "PyMOP End-to-end time: "), 
+            pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"
+          ));
+          commitInfo.push(el("div", {}, 
+            el("strong", {}, "Dylin End-to-end time: "), 
+            dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"
+          ));
+        } else {
+          commitInfo.push(el("div", {}, el("strong", {}, "Original End-to-end time: "), "x"));
+          commitInfo.push(el("div", {}, el("strong", {}, "PyMOP End-to-end time: "), "x"));
+          commitInfo.push(el("div", {}, el("strong", {}, "Dylin End-to-end time: "), "x"));
+        }
       }
       
       // Add GitHub compare URL for monitoring runs
