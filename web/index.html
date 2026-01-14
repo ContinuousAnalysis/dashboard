@@ -634,19 +634,19 @@
               };
               
               if (plotType === "times_only") {
-                plotTimeLine(origTimes, "#dc2626", "s", "Original");
-                plotTimeLine(pymopTimes, "#16a34a", "^", "Pymop");
-                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin");
+                plotTimeLine(origTimes, "#dc2626", "s", "Original Time");
+                plotTimeLine(pymopTimes, "#16a34a", "^", "Pymop Time");
+                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin Time");
               } else { // both
-                plotTimeLine(origTimes, "#dc2626", "s", "Original");
-                plotTimeLine(pymopTimes, "#16a34a", "^", "Pymop");
-                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin");
+                plotTimeLine(origTimes, "#dc2626", "s", "Original Time");
+                plotTimeLine(pymopTimes, "#16a34a", "^", "Pymop Time");
+                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin Time");
               }
             }
             
             // Use wider viewBox to ensure right y-axis labels are visible
             const viewBoxWidth = (plotType === "times_only" || plotType === "both") ? Wp + 20 : Wp;
-            return svgEl("svg", {width:String(Wp), height:String(Hp), viewBox:`0 0 ${viewBoxWidth} ${Hp}`}, ...plotElements);
+            return svgEl("svg", {width:"100%", height:String(Hp), viewBox:`0 0 ${viewBoxWidth} ${Hp}`, style:"display:block;"}, ...plotElements);
           };
         
         // Create plot switcher
@@ -694,11 +694,18 @@
             legendContainer.style.justifyContent = "center";
             legendContainer.innerHTML = "";
             
-            const legendItems = [
-              {color: "#dc2626", label: "Original"},
-              {color: "#16a34a", label: "Pymop"},
-              {color: "#fbbf24", label: "Dylin"}
-            ];
+            const legendItems = currentPlotType === "both" 
+              ? [
+                  {color: "#2563eb", label: "Violations"},
+                  {color: "#dc2626", label: "Original Time"},
+                  {color: "#16a34a", label: "Pymop Time"},
+                  {color: "#fbbf24", label: "Dylin Time"}
+                ]
+              : [
+                  {color: "#dc2626", label: "Original Time"},
+                  {color: "#16a34a", label: "Pymop Time"},
+                  {color: "#fbbf24", label: "Dylin Time"}
+                ];
             
             legendItems.forEach((item) => {
               const legendItem = el("div", {style:"display:flex; align-items:center; gap:6px;"},
