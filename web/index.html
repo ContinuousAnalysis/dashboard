@@ -587,46 +587,7 @@
               }
               
               // Add color legend for time plots (only for times_only and both)
-              if (plotType === "times_only" || plotType === "both") {
-                const legendY = Mp.t + 8;
-                const legendX = Wp - Mp.r - 85;
-                const legendItems = [
-                  {color: "#dc2626", label: "Original"},
-                  {color: "#16a34a", label: "Pymop"},
-                  {color: "#fbbf24", label: "Dylin"}
-                ];
-                
-                legendItems.forEach((item, idx) => {
-                  // Color indicator (small square)
-                  plotElements.push(svgEl("rect", {
-                    x: String(legendX),
-                    y: String(legendY + idx * 16),
-                    width: "10",
-                    height: "10",
-                    fill: item.color,
-                    stroke: "#cbd5e1",
-                    "stroke-width": "0.5"
-                  }));
-                  // Label text
-                  plotElements.push(svgEl("text", {
-                    x: String(legendX + 14),
-                    y: String(legendY + idx * 16 + 8),
-                    fill: "#374151",
-                    "font-size": "9",
-                    "text-anchor": "start"
-                  }, item.label));
-                });
-                
-                // Add note about -5 indicating tool failure
-                plotElements.push(svgEl("text", {
-                  x: String(Mp.l + 5),
-                  y: String(Mp.t + 12),
-                  fill: "#6b7280",
-                  "font-size": "9",
-                  "text-anchor": "start",
-                  "font-style": "italic"
-                }, "Note: -5 indicates tool failure"));
-              }
+              // Legend and note are now rendered outside the SVG, above the graph
               
               // Plot time lines
               const plotTimeLine = (times, color, marker, label) => {
@@ -690,6 +651,7 @@
         
         // Create plot switcher
         const plotContainer = el("div", {class:"plot-container", style:"position:relative;"});
+        const legendContainer = el("div", {class:"plot-legend", style:"display:none; margin-bottom:8px; padding:8px; background:#f9fafb; border-radius:6px;"});
         let currentPlotType = "violations_only";
         
         // Store time arrays in a way that can be updated
@@ -723,6 +685,31 @@
           plotContainer.innerHTML = "";
           const plot = createPlotWithTimeData(currentPlotType);
           plotContainer.appendChild(plot);
+          
+          // Show/hide legend based on plot type (3 columns, 1 row layout)
+          if (currentPlotType === "times_only" || currentPlotType === "both") {
+            legendContainer.style.display = "flex";
+            legendContainer.style.flexDirection = "row";
+            legendContainer.style.gap = "24px";
+            legendContainer.style.justifyContent = "center";
+            legendContainer.innerHTML = "";
+            
+            const legendItems = [
+              {color: "#dc2626", label: "Original"},
+              {color: "#16a34a", label: "Pymop"},
+              {color: "#fbbf24", label: "Dylin"}
+            ];
+            
+            legendItems.forEach((item) => {
+              const legendItem = el("div", {style:"display:flex; align-items:center; gap:6px;"},
+                el("div", {style:`width:12px; height:12px; background:${item.color}; border:1px solid #cbd5e1; border-radius:2px;`}),
+                el("span", {style:"font-size:12px; color:#374151;"}, item.label)
+              );
+              legendContainer.appendChild(legendItem);
+            });
+          } else {
+            legendContainer.style.display = "none";
+          }
           
           // Update button styles
           [violationsBtn, bothBtn, timesBtn].forEach(btn => {
@@ -782,6 +769,7 @@
           const chartCard = el("div", {class:"card", style:"flex:1; min-width:520px;"},
             el("h3", {}, "Violations/End-to-end Times Trend Per Commit"),
             plotSwitcher,
+            legendContainer,
             plotContainer
           );
           
