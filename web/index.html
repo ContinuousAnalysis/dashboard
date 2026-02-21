@@ -271,7 +271,8 @@
       const table = el("table", {},
         el("thead", {}, el("tr", {},
           el("th", {}, "Project"),
-          el("th", {}, "PR (commit)"),
+          el("th", {}, "PR"),
+          el("th", {}, "Commit"),
           el("th", {}, "New unique violations")
         )),
         el("tbody")
@@ -279,8 +280,10 @@
       const tbody = table.querySelector("tbody");
       (ds.projects || []).forEach(p => {
         (p.prs || []).forEach(pr => {
+          const prLabel = pr.pr_number != null ? `#${pr.pr_number}` : "—";
           tbody.append(el("tr", {},
             el("td", {}, el("a", {href:`#/now/p/${p.slug}`}, p.full_name)),
+            el("td", {class:"nowrap"}, prLabel),
             el("td", {class:"nowrap"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
             el("td", {}, String(pr.num_new_violations ?? 0))
           ));

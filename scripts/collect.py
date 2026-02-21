@@ -80,6 +80,13 @@ def looks_with_prefix(a: dict, repo: str, prefix: str) -> bool:
     n = a.get("name", "")
     return n.startswith(prefix) and not a.get("expired") and (f"-{repo}-" in n)
 
+def all_with_prefix(owner: str, repo: str, prefix: str):
+    """Yield all (non-expired) artifacts whose name starts with prefix and contains -{repo}-."""
+    for a in list_artifacts(owner, repo):
+        if not looks_with_prefix(a, repo, prefix):
+            continue
+        yield a
+
 def latest_with_prefix(owner: str, repo: str, prefix: str) -> Optional[dict]:
     cands = []
     for a in list_artifacts(owner, repo):
@@ -107,6 +114,20 @@ def find_csv(zip_bytes: bytes, candidates: List[str]) -> Optional[Tuple[str, byt
             if n.lower().endswith(".csv"):
                 with zf.open(n) as f: return n, f.read()
     return None
+
+# PR artifact name: continuous-analysis-prs-filtered-results-{dispatch_id}-{repo}-{current}-{previous}
+# dispatch_id = "pr-${pr_num}-$(date -u +%Y%m%dT%H%M%SZ)-$RANDOM"
+_PR_NUM_IN_NAME = re.compile(r"pr-(\d+)-")
+
+def parse_pr_number_from_artifact_name(name: str) -> Optional[int]:
+    """Extract PR number from dispatch_id in artifact name. Returns None if not found."""
+    m = _PR_NUM_IN_NAME.search(name or "")
+    if not m:
+        return None
+    try:
+        return int(m.group(1))
+    except (ValueError, TypeError):
+        return None
 
 # ---------- Data parsing ----------
 ENTRY_SEP = re.compile(r"\s*;\s*")
@@ -796,10 +817,11 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
 
 def build_dataset_pr() -> dict:
     """
-    Reads artifacts with prefix continuous-analysis-prs-filtered-results-.
-    Each PR is represented by two rows in the CSV (two commits); we use only the
-    second entry (second row of each pair) as the result. Outputs per-project
-    list of PRs with num_new_violations (new unique violations for that PR).
+    Reads all artifacts with prefix continuous-analysis-prs-filtered-results- per repo.
+    Artifact name format: prefix + {dispatch_id}-{repo_name}-{current_commit}-{previous_commit}
+    dispatch_id = "pr-{pr_num}-{timestamp}-{random}". We use the latest artifact per PR number
+    (by created_at). Each artifact's CSV has two rows (two commits); we use only the second
+    entry. Outputs per-project list of PRs with pr_number, sha, num_new_violations.
     """
     EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
 
@@ -818,43 +840,68 @@ def build_dataset_pr() -> dict:
 
     for full in REPOS:
         owner, repo = full.split("/", 1)
-        art = latest_with_prefix(owner, repo, PR_PREFIX)
+        # Collect all PR artifacts for this repo
+        artifacts_by_pr: Dict[int, List[dict]] = {}
+        for a in all_with_prefix(owner, repo, PR_PREFIX):
+            pr_num = parse_pr_number_from_artifact_name(a.get("name", ""))
+            if pr_num is None:
+                continue
+            artifacts_by_pr.setdefault(pr_num, []).append(a)
+
+        # For each PR number, keep only the latest artifact (by created_at)
+        latest_per_pr: List[Tuple[int, dict]] = []
+        for pr_num, arts in artifacts_by_pr.items():
+            def artifact_created_at(ar):
+                created = ar.get("created_at")
+                if not created:
+                    return dt.datetime.fromtimestamp(0, tz=dt.timezone.utc)
+                try:
+                    return dt.datetime.fromisoformat(created.replace("Z", "+00:00"))
+                except Exception:
+                    return dt.datetime.fromtimestamp(0, tz=dt.timezone.utc)
+
+            best = max(arts, key=artifact_created_at)
+            latest_per_pr.append((pr_num, best))
+
+        # Sort by PR number for stable order
+        latest_per_pr.sort(key=lambda t: t[0])
 
         proj = {
             "slug": full.replace("/", "-").lower(),
             "full_name": full,
-            "latest_artifact_name": art.get("name") if art else None,
             "url": repo_url_map.get(full),
             "date_shadowing_started": repo_date_map.get(full),
             "prs": []
         }
 
-        if art:
+        for pr_num, art in latest_per_pr:
             try:
                 zip_bytes = gh_get_bin(art["archive_download_url"])
                 found = find_csv(zip_bytes, CSV_CANDS)
-                if found:
-                    _, csv_bytes = found
-                    df = pd.read_csv(io.BytesIO(csv_bytes), dtype=str).fillna("")
-                    df.columns = [c.strip().lower() for c in df.columns]
-                    required = {"current_commit_sha", "new_violations"}
-                    if required.issubset(df.columns):
-                        # Use only the second entry of each pair (rows at index 1, 3, 5, ...)
-                        for i in range(1, len(df), 2):
-                            r = df.iloc[i]
-                            sha = str(r.get("current_commit_sha", "")).strip()
-                            if not sha:
-                                continue
-                            new_v = str(r.get("new_violations", "") or "").strip()
-                            new_locs = parse_vloc_cell(new_v) if new_v else []
-                            num_new = count_unique_violations(new_locs)
-                            proj["prs"].append({
-                                "sha": sha,
-                                "num_new_violations": num_new
-                            })
-                        total_prs += len(proj["prs"])
+                if not found:
+                    continue
+                _, csv_bytes = found
+                df = pd.read_csv(io.BytesIO(csv_bytes), dtype=str).fillna("")
+                df.columns = [c.strip().lower() for c in df.columns]
+                required = {"current_commit_sha", "new_violations"}
+                if not required.issubset(df.columns) or len(df) < 2:
+                    continue
+                # Use only the second entry (second row) as the result for this PR
+                r = df.iloc[1]
+                sha = str(r.get("current_commit_sha", "")).strip()
+                if not sha:
+                    continue
+                new_v = str(r.get("new_violations", "") or "").strip()
+                new_locs = parse_vloc_cell(new_v) if new_v else []
+                num_new = count_unique_violations(new_locs)
+                proj["prs"].append({
+                    "pr_number": pr_num,
+                    "sha": sha,
+                    "num_new_violations": num_new
+                })
+                total_prs += 1
             except Exception as e:
-                print(f"WARNING: Failed to process PR artifact for {full}: {e}")
+                print(f"WARNING: Failed to process PR artifact for {full} PR #{pr_num}: {e}")
 
         projects_out.append(proj)
 
