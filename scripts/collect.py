@@ -35,8 +35,9 @@ def _ensure_prefix_list(value) -> List[str]:
     raise TypeError(f"Expected string or list of strings for prefix configuration, got {type(value).__name__}")
 
 MON_PREFIXES = _ensure_prefix_list(CONFIG["monitoring_prefix"])
+PR_PREFIX = _ensure_prefix_list(CONFIG["pr_prefix"])
 CSV_CANDS  = CONFIG["csv_name_candidates"]
-FAIL_IF_MISSING_CSV = CONFIG.get("fail_if_missing_csv", True)
+FAIL_IF_MISSING_CSV = CONFIG["fail_if_missing_csv"]
 
 # ---------- GitHub API ----------
 API = "https://api.github.com"
@@ -792,12 +793,82 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
         totals["removed_locations_after_first"] = total_removed_after_first
     return {"projects": projects_out, "totals": totals}
 
+
+def build_dataset_pr() -> dict:
+    """
+    Reads artifacts with prefix continuous-analysis-prs-filtered-results-.
+    Each PR is represented by two rows in the CSV (two commits); we use only the
+    second entry (second row of each pair) as the result. Outputs per-project
+    list of PRs with num_new_violations (new unique violations for that PR).
+    """
+    EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+
+    def count_unique_violations(locs_list: List[dict]) -> int:
+        unique_locs = set()
+        for v in locs_list:
+            if EXCLUDED_PATH not in v.get("file", ""):
+                unique_locs.add((v["file"], v["line"]))
+        return len(unique_locs)
+
+    projects_out = []
+    total_prs = 0
+
+    repo_url_map = {repo: url for repo, url, _ in REPOS_WITH_METADATA}
+    repo_date_map = {repo: date for repo, _, date in REPOS_WITH_METADATA}
+
+    for full in REPOS:
+        owner, repo = full.split("/", 1)
+        art = latest_with_prefix(owner, repo, PR_PREFIX)
+
+        proj = {
+            "slug": full.replace("/", "-").lower(),
+            "full_name": full,
+            "latest_artifact_name": art.get("name") if art else None,
+            "url": repo_url_map.get(full),
+            "date_shadowing_started": repo_date_map.get(full),
+            "prs": []
+        }
+
+        if art:
+            try:
+                zip_bytes = gh_get_bin(art["archive_download_url"])
+                found = find_csv(zip_bytes, CSV_CANDS)
+                if found:
+                    _, csv_bytes = found
+                    df = pd.read_csv(io.BytesIO(csv_bytes), dtype=str).fillna("")
+                    df.columns = [c.strip().lower() for c in df.columns]
+                    required = {"current_commit_sha", "new_violations"}
+                    if required.issubset(df.columns):
+                        # Use only the second entry of each pair (rows at index 1, 3, 5, ...)
+                        for i in range(1, len(df), 2):
+                            r = df.iloc[i]
+                            sha = str(r.get("current_commit_sha", "")).strip()
+                            if not sha:
+                                continue
+                            new_v = str(r.get("new_violations", "") or "").strip()
+                            new_locs = parse_vloc_cell(new_v) if new_v else []
+                            num_new = count_unique_violations(new_locs)
+                            proj["prs"].append({
+                                "sha": sha,
+                                "num_new_violations": num_new
+                            })
+                        total_prs += len(proj["prs"])
+            except Exception as e:
+                print(f"WARNING: Failed to process PR artifact for {full}: {e}")
+
+        projects_out.append(proj)
+
+    totals = {"prs": total_prs}
+    return {"projects": projects_out, "totals": totals}
+
+
 def build():
     payload = {
         "generated_at": int(time.time()),
         "datasets": {
             "monitoring": build_dataset(MON_PREFIXES, compute_after_first=True),
-            "history":    build_dataset_from_local(compute_after_first=True)
+            "history":    build_dataset_from_local(compute_after_first=True),
+            "pr":         build_dataset_pr()
         }
     }
     (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")

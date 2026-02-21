@@ -53,6 +53,7 @@
   <div class="tabs">
     <a id="tab-now" class="tab" href="#/now">Monitoring</a>
     <a id="tab-hist" class="tab" href="#/hist">History</a>
+    <a id="tab-pr" class="tab" href="#/pr">PR Analysis</a>
   </div>
 
   <div id="app"></div>
@@ -114,11 +115,14 @@
     function setActiveTab(kind){
       document.getElementById("tab-now").classList.toggle("active", kind==="now");
       document.getElementById("tab-hist").classList.toggle("active", kind==="hist");
+      document.getElementById("tab-pr").classList.toggle("active", kind==="pr");
     }
 
     function pickDataset(kind){
       if (!DATA || !DATA.datasets) return null;
-      return kind === "hist" ? DATA.datasets.history : DATA.datasets.monitoring;
+      if (kind === "hist") return DATA.datasets.history;
+      if (kind === "pr") return DATA.datasets.pr;
+      return DATA.datasets.monitoring;
     }
 
     function route() {
@@ -126,12 +130,15 @@
       const app = document.getElementById("app");
       app.innerHTML = "";
       const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-      const kind = (parts[0]==="hist") ? "hist" : "now";
+      const kind = (parts[0]==="hist") ? "hist" : (parts[0]==="pr") ? "pr" : "now";
       setActiveTab(kind);
       const ds = pickDataset(kind);
       const tail = parts.slice(1);
 
-      if (tail.length === 0) return renderHome(app, ds, kind);
+      if (tail.length === 0) {
+        if (kind === "pr") return renderPrHome(app, ds);
+        return renderHome(app, ds, kind);
+      }
       if (tail[0] === "p" && tail[1] && tail.length === 2) return renderProject(app, ds, kind, tail[1]);
       if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail.length === 4) return renderCommit(app, ds, kind, tail[1], tail[3]);
       if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail[4] === "v" && tail[5]) return renderViolation(app, ds, kind, tail[1], tail[3], tail[5]);
@@ -250,6 +257,36 @@
         ));
       });
       app.append(grid);
+    }
+
+    function renderPrHome(app, ds) {
+      if (!ds) return app.append(el("div", {}, "No data"));
+      const totals = ds.totals || { prs: 0 };
+      const totalPrs = totals.prs || 0;
+      const summaryParts = [
+        el("strong", {}, "Total PRs: "), String(totalPrs)
+      ];
+      app.append(el("div", {class:"card"}, ...summaryParts));
+
+      const table = el("table", {},
+        el("thead", {}, el("tr", {},
+          el("th", {}, "Project"),
+          el("th", {}, "PR (commit)"),
+          el("th", {}, "New unique violations")
+        )),
+        el("tbody")
+      );
+      const tbody = table.querySelector("tbody");
+      (ds.projects || []).forEach(p => {
+        (p.prs || []).forEach(pr => {
+          tbody.append(el("tr", {},
+            el("td", {}, el("a", {href:`#/now/p/${p.slug}`}, p.full_name)),
+            el("td", {class:"nowrap"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
+            el("td", {}, String(pr.num_new_violations ?? 0))
+          ));
+        });
+      });
+      app.append(table);
     }
 
     function renderProject(app, ds, kind, slug){

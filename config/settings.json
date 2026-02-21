@@ -3,8 +3,7 @@
     "continuous-analysis-future-filtered-results-",
     "continuous-analysis-filtered-results-"
   ],
-  "csv_name_candidates": [
-    "continuous_analysis_over_time_violations_filtered.csv"
-  ],
+  "pr_prefix": ["continuous-analysis-prs-filtered-results-"],
+  "csv_name_candidates": ["continuous_analysis_over_time_violations_filtered.csv"],
   "fail_if_missing_csv": true
 }
