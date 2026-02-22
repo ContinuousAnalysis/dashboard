@@ -12,7 +12,6 @@ rm -rf "$WORKDIR" "$LOGDIR"
 mkdir "$WORKDIR" "$LOGDIR"
 
 # ---- helper: extract UPSTREAM_REPO and BRANCH from .github/workflows/monitor-upstream-and-analyze.yml (always exists) ----
-# Uses portable sed/grep (no \s) so it works on macOS and Linux
 extract_repo_branch() {
   local file="$1"
   local upstream_repo="" branch=""
@@ -111,7 +110,7 @@ while IFS= read -r line; do
   if [[ "$COMMIT_AND_PUSH_CHANGES" == "1" ]]; then
     if ! git -C "$repo_dir" diff --quiet; then
       git -C "$repo_dir" add .github/workflows &>>"$repo_log" || true
-      git -C "$repo_dir" commit -m "chore: update GitHub Actions workflows" &>>"$repo_log" || true
+      git -C "$repo_dir" commit -m "chore: update GitHub Actions workflows schedule" &>>"$repo_log" || true
       git -C "$repo_dir" push &>>"$repo_log" || true
       echo "[COMMIT] created commit and pushed" | tee -a "$LOGDIR/summary.log"
     else
