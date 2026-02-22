@@ -825,10 +825,19 @@ def build_dataset_pr() -> dict:
     """
     EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
 
+    def is_project_violation(file_path: str) -> bool:
+        """Only keep violations from the project; exclude python3.12, site-packages, and other excluded paths."""
+        p = file_path or ""
+        if "python3.12" in p or "site-packages" in p:
+            return False
+        if EXCLUDED_PATH in p:
+            return False
+        return True
+
     def count_unique_violations(locs_list: List[dict]) -> int:
         unique_locs = set()
         for v in locs_list:
-            if EXCLUDED_PATH not in v.get("file", ""):
+            if is_project_violation(v.get("file", "")):
                 unique_locs.add((v["file"], v["line"]))
         return len(unique_locs)
 
@@ -870,6 +879,7 @@ def build_dataset_pr() -> dict:
             "slug": full.replace("/", "-").lower(),
             "full_name": full,
             "url": repo_url_map.get(full),
+            "shadowed_repo": full,
             "date_shadowing_started": repo_date_map.get(full),
             "prs": []
         }
@@ -897,7 +907,7 @@ def build_dataset_pr() -> dict:
                 # Build violations list (same structure as commit violations) for detail view
                 by_loc: Dict[Tuple[str, int], dict] = {}
                 for v in new_locs:
-                    if EXCLUDED_PATH in v.get("file", ""):
+                    if not is_project_violation(v.get("file", "")):
                         continue
                     key = (v["file"], v["line"])
                     rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})

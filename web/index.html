@@ -275,14 +275,19 @@
       app.append(el("div", {class:"card"}, ...summaryParts));
 
       const grid = el("div", {class:"grid"});
-      projects.forEach(p => {
+      projects.filter(p => (p.prs || []).length > 0).forEach(p => {
         const prs = p.prs || [];
         const prCount = prs.length;
         const totalNewViolations = prs.reduce((sum, pr) => sum + (pr.num_new_violations ?? 0), 0);
+        const pillsContainer = el("div", {style:"margin-top:8px;"});
+        pillsContainer.append(
+          el("span", {class:"pill"}, `PRs: ${prCount}`),
+          " ",
+          el("span", {class:"pill"}, `New unique violations: ${totalNewViolations}`)
+        );
         grid.append(el("div", {class:"card"},
           el("h3", {}, el("a", {href:`#/pr/p/${p.slug}`}, p.full_name)),
-          el("div", {class:"muted"}, `PRs: ${prCount}`),
-          el("div", {class:"muted"}, `New unique violations (total): ${totalNewViolations}`)
+          pillsContainer
         ));
       });
       app.append(grid);
@@ -293,9 +298,43 @@
       if (!p) return app.append(el("div", {}, "Project not found"));
       app.append(breadcrumb([{href:"#/pr", text:"Home"}, {text:p.full_name}]));
 
+      // Project Metadata (same as monitoring)
+      if (p.shadowed_repo || p.url || p.date_shadowing_started) {
+        const urlBoxContent = [
+          el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
+        ];
+        urlBoxContent.push(
+          el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
+            el("span", {}, "Project URL: "),
+            p.url
+              ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
+              : el("span", {class:"muted"}, "—")
+          )
+        );
+        const shadowedUrl = p.shadowed_repo ? `https://github.com/${p.shadowed_repo}` : null;
+        urlBoxContent.push(
+          el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
+            el("span", {}, "Shadowed Project URL: "),
+            shadowedUrl
+              ? el("a", {href:shadowedUrl, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, shadowedUrl)
+              : el("span", {class:"muted"}, "—")
+          )
+        );
+        urlBoxContent.push(
+          el("div", {style:"display:flex; align-items:center; gap:8px;"},
+            el("span", {}, "Date shadowing started: "),
+            p.date_shadowing_started
+              ? el("span", {}, p.date_shadowing_started)
+              : el("span", {class:"muted"}, "—")
+          )
+        );
+        app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
+      }
+
       const table = el("table", {},
         el("thead", {}, el("tr", {},
           el("th", {}, "PR"),
+          el("th", {}, "Link"),
           el("th", {}, "Commit"),
           el("th", {}, "New unique violations")
         )),
@@ -304,8 +343,10 @@
       const tbody = table.querySelector("tbody");
       (p.prs || []).forEach(pr => {
         const prLabel = pr.pr_number != null ? `#${pr.pr_number}` : "—";
+        const prLinkUrl = p.full_name ? `https://github.com/${p.full_name}/pull/${pr.pr_number}` : null;
         tbody.append(el("tr", {},
           el("td", {class:"nowrap"}, el("a", {href:`#/pr/p/${p.slug}/r/${pr.pr_number}`}, prLabel)),
+          el("td", {class:"nowrap"}, prLinkUrl ? el("a", {href: prLinkUrl, target: "_blank"}, "Open") : "—"),
           el("td", {class:"nowrap"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
           el("td", {}, String(pr.num_new_violations ?? 0))
         ));
@@ -325,11 +366,13 @@
         {text: `PR #${pr.pr_number}`}
       ]));
 
+      const prUrl = p.full_name ? `https://github.com/${p.full_name}/pull/${pr.pr_number}` : null;
       const prInfo = [
         el("div", {}, el("strong", {}, "PR: "), el("code", {}, `#${pr.pr_number}`)),
+        prUrl ? el("div", {}, el("strong", {}, "PR link: "), el("a", {href: prUrl, target: "_blank", style:"color:#2563eb; word-break:break-all;"}, prUrl)) : null,
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, pr.sha || "—")),
         el("div", {}, el("strong", {}, "New unique violations: "), String(pr.num_new_violations ?? 0))
-      ];
+      ].filter(Boolean);
       app.append(el("div", {class:"card"}, ...prInfo));
 
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
