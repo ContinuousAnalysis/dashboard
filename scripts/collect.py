@@ -820,10 +820,9 @@ def build_dataset_pr() -> dict:
     Reads all artifacts with prefix continuous-analysis-prs-filtered-results- per repo.
     Artifact name format: prefix + {dispatch_id}-{repo_name}-{current_commit}-{previous_commit}
     dispatch_id = "pr-{pr_num}-{timestamp}-{random}". We use the latest artifact per PR number
-    (by created_at). Each artifact's CSV has two rows (two commits); we use only the second
-    entry. Outputs per-project list of PRs with pr_number, sha, num_new_violations.
+    (by created_at).
     """
-    EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+    EXCLUDED_PATH = "/specs-new/"
 
     def is_project_violation(file_path: str) -> bool:
         """Only keep violations from the project; exclude python3.12, site-packages, <frozen, and other excluded paths."""
