@@ -139,6 +139,9 @@
         if (kind === "pr") return renderPrHome(app, ds);
         return renderHome(app, ds, kind);
       }
+      if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail[4] === "v" && tail[5]) return renderPrViolation(app, ds, tail[1], tail[3], tail[5]);
+      if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail.length === 4) return renderPrDetail(app, ds, tail[1], tail[3]);
+      if (kind === "pr" && tail[0] === "p" && tail[1] && tail.length === 2) return renderPrProject(app, ds, tail[1]);
       if (tail[0] === "p" && tail[1] && tail.length === 2) return renderProject(app, ds, kind, tail[1]);
       if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail.length === 4) return renderCommit(app, ds, kind, tail[1], tail[3]);
       if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail[4] === "v" && tail[5]) return renderViolation(app, ds, kind, tail[1], tail[3], tail[5]);
@@ -158,6 +161,7 @@
     function findProject(ds, slug){ return (ds.projects||[]).find(p => p.slug === slug); }
     function findCommit(p, sha){ return (p.commits||[]).find(c => c.sha === sha); }
     function findViolation(c, id){ return (c.violations||[]).find(v => v.id === id); }
+    function findPr(p, prNum) { const n = parseInt(prNum, 10); return (p.prs||[]).find(pr => pr.pr_number === n || pr.pr_number === prNum); }
 
     // --------- Views ---------
     function renderHome(app, ds, kind){
@@ -263,14 +267,34 @@
       if (!ds) return app.append(el("div", {}, "No data"));
       const totals = ds.totals || { prs: 0 };
       const totalPrs = totals.prs || 0;
+      const projects = ds.projects || [];
       const summaryParts = [
-        el("strong", {}, "Total PRs: "), String(totalPrs)
+        el("strong", {}, "Total projects: "), String(projects.length),
+        " • ", el("strong", {}, "Total PRs: "), String(totalPrs)
       ];
       app.append(el("div", {class:"card"}, ...summaryParts));
 
+      const grid = el("div", {class:"grid"});
+      projects.forEach(p => {
+        const prs = p.prs || [];
+        const prCount = prs.length;
+        const totalNewViolations = prs.reduce((sum, pr) => sum + (pr.num_new_violations ?? 0), 0);
+        grid.append(el("div", {class:"card"},
+          el("h3", {}, el("a", {href:`#/pr/p/${p.slug}`}, p.full_name)),
+          el("div", {class:"muted"}, `PRs: ${prCount}`),
+          el("div", {class:"muted"}, `New unique violations (total): ${totalNewViolations}`)
+        ));
+      });
+      app.append(grid);
+    }
+
+    function renderPrProject(app, ds, slug) {
+      const p = findProject(ds, slug);
+      if (!p) return app.append(el("div", {}, "Project not found"));
+      app.append(breadcrumb([{href:"#/pr", text:"Home"}, {text:p.full_name}]));
+
       const table = el("table", {},
         el("thead", {}, el("tr", {},
-          el("th", {}, "Project"),
           el("th", {}, "PR"),
           el("th", {}, "Commit"),
           el("th", {}, "New unique violations")
@@ -278,18 +302,111 @@
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
-      (ds.projects || []).forEach(p => {
-        (p.prs || []).forEach(pr => {
-          const prLabel = pr.pr_number != null ? `#${pr.pr_number}` : "—";
-          tbody.append(el("tr", {},
-            el("td", {}, el("a", {href:`#/now/p/${p.slug}`}, p.full_name)),
-            el("td", {class:"nowrap"}, prLabel),
-            el("td", {class:"nowrap"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
-            el("td", {}, String(pr.num_new_violations ?? 0))
-          ));
-        });
+      (p.prs || []).forEach(pr => {
+        const prLabel = pr.pr_number != null ? `#${pr.pr_number}` : "—";
+        tbody.append(el("tr", {},
+          el("td", {class:"nowrap"}, el("a", {href:`#/pr/p/${p.slug}/r/${pr.pr_number}`}, prLabel)),
+          el("td", {class:"nowrap"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
+          el("td", {}, String(pr.num_new_violations ?? 0))
+        ));
       });
       app.append(table);
+    }
+
+    function renderPrDetail(app, ds, slug, prNum) {
+      const p = findProject(ds, slug);
+      if (!p) return app.append(el("div", {}, "Project not found"));
+      const pr = findPr(p, prNum);
+      if (!pr) return app.append(el("div", {}, "PR not found"));
+
+      app.append(breadcrumb([
+        {href:"#/pr", text:"Home"},
+        {href:`#/pr/p/${p.slug}`, text:p.full_name},
+        {text: `PR #${pr.pr_number}`}
+      ]));
+
+      const prInfo = [
+        el("div", {}, el("strong", {}, "PR: "), el("code", {}, `#${pr.pr_number}`)),
+        el("div", {}, el("strong", {}, "Commit: "), el("code", {}, pr.sha || "—")),
+        el("div", {}, el("strong", {}, "New unique violations: "), String(pr.num_new_violations ?? 0))
+      ];
+      app.append(el("div", {class:"card"}, ...prInfo));
+
+      const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
+      app.append(input);
+
+      const table = el("table", {},
+        el("thead", {}, el("tr", {},
+          el("th", {}, "File"),
+          el("th", {}, "Line"),
+          el("th", {}, "Specs"),
+          el("th", {}, "Total Occurrences"),
+          el("th", {}, "Details")
+        )),
+        el("tbody")
+      );
+      const tbody = table.querySelector("tbody");
+
+      function draw() {
+        tbody.innerHTML = "";
+        const q = (input.value || "").toLowerCase();
+        (pr.violations || [])
+          .filter(v =>
+            (v.file || "").toLowerCase().includes(q) ||
+            String(v.line).includes(q) ||
+            (v.specs || "").toLowerCase().includes(q)
+          )
+          .forEach(v => {
+            tbody.append(el("tr", {},
+              el("td", {class:"nowrap"}, v.file),
+              el("td", {}, String(v.line)),
+              el("td", {}, v.specs || "—"),
+              el("td", {}, String(v.count || 0)),
+              el("td", {}, el("a", {href:`#/pr/p/${p.slug}/r/${pr.pr_number}/v/${v.id}`, class:"nowrap"}, "Open"))
+            ));
+          });
+      }
+      input.addEventListener("input", draw);
+      draw();
+      app.append(table);
+    }
+
+    function renderPrViolation(app, ds, slug, prNum, id) {
+      const p = findProject(ds, slug);
+      if (!p) return app.append(el("div", {}, "Project not found"));
+      const pr = findPr(p, prNum);
+      if (!pr) return app.append(el("div", {}, "PR not found"));
+      const v = (pr.violations || []).find(x => x.id === id);
+      if (!v) return app.append(el("div", {}, "Violation not found"));
+
+      app.append(breadcrumb([
+        {href:"#/pr", text:"Home"},
+        {href:`#/pr/p/${p.slug}`, text:p.full_name},
+        {href:`#/pr/p/${p.slug}/r/${pr.pr_number}`, text: `PR #${pr.pr_number}`},
+        {text: v.id}
+      ]));
+
+      const violationInfo = [
+        el("div", {}, el("strong", {}, "Project: "), p.full_name),
+        el("div", {}, el("strong", {}, "PR: "), el("code", {}, `#${pr.pr_number}`)),
+        el("div", {}, el("strong", {}, "Commit: "), el("code", {}, pr.sha || "—")),
+        el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
+        el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
+        el("div", {}, el("strong", {}, "Total Occurrences: "), String(v.count || 0))
+      ];
+      app.append(el("div", {class:"card"}, ...violationInfo));
+
+      const bd = v.breakdown || [];
+      const table = el("table", {},
+        el("thead", {}, el("tr", {}, el("th", {}, "Spec"), el("th", {}, "Count"))),
+        el("tbody", {}, ...(bd.length ? bd.map(b =>
+          el("tr", {}, el("td", {}, b.spec), el("td", {}, String(b.count)))
+        ) : [el("tr", {}, el("td", {colspan:"2"}, el("span", {class:"muted"}, "No spec entries found.")))]))
+      );
+      app.append(el("div", {class:"card"},
+        el("h3", {}, "Spec breakdown"),
+        table
+      ));
     }
 
     function renderProject(app, ds, kind, slug){

@@ -894,10 +894,30 @@ def build_dataset_pr() -> dict:
                 new_v = str(r.get("new_violations", "") or "").strip()
                 new_locs = parse_vloc_cell(new_v) if new_v else []
                 num_new = count_unique_violations(new_locs)
+                # Build violations list (same structure as commit violations) for detail view
+                by_loc: Dict[Tuple[str, int], dict] = {}
+                for v in new_locs:
+                    if EXCLUDED_PATH in v.get("file", ""):
+                        continue
+                    key = (v["file"], v["line"])
+                    rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
+                    rec["specs"].add(v["spec"])
+                violations = []
+                for (f, ln), rec in sorted(by_loc.items(), key=lambda t: (t[0][0], t[0][1])):
+                    spec_list = sorted(rec["specs"])
+                    violations.append({
+                        "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
+                        "file": f,
+                        "line": int(ln),
+                        "count": len(spec_list),
+                        "specs": ";".join(spec_list),
+                        "breakdown": [{"spec": s, "count": 1} for s in spec_list]
+                    })
                 proj["prs"].append({
                     "pr_number": pr_num,
                     "sha": sha,
-                    "num_new_violations": num_new
+                    "num_new_violations": num_new,
+                    "violations": violations
                 })
                 total_prs += 1
             except Exception as e:
