@@ -279,11 +279,15 @@
         const prs = p.prs || [];
         const prCount = prs.length;
         const totalNewViolations = prs.reduce((sum, pr) => sum + (pr.num_new_violations ?? 0), 0);
+        const hasNewViolations = totalNewViolations > 0;
         const pillsContainer = el("div", {style:"margin-top:8px;"});
+        const violationsPillStyle = hasNewViolations
+          ? "background:#fef2f2; color:#dc2626; border:1px solid #fecaca;"
+          : "";
         pillsContainer.append(
           el("span", {class:"pill"}, `PRs: ${prCount}`),
           " ",
-          el("span", {class:"pill"}, `New unique violations: ${totalNewViolations}`)
+          el("span", {class:"pill", style:violationsPillStyle}, `New unique violations: ${totalNewViolations}`)
         );
         grid.append(el("div", {class:"card"},
           el("h3", {}, el("a", {href:`#/pr/p/${p.slug}`}, p.full_name)),
