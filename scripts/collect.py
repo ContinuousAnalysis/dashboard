@@ -826,9 +826,9 @@ def build_dataset_pr() -> dict:
     EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
 
     def is_project_violation(file_path: str) -> bool:
-        """Only keep violations from the project; exclude python3.12, site-packages, and other excluded paths."""
+        """Only keep violations from the project; exclude python3.12, site-packages, <frozen, and other excluded paths."""
         p = file_path or ""
-        if "python3.12" in p or "site-packages" in p:
+        if "python3.12" in p or "site-packages" in p or "<frozen" in p:
             return False
         if EXCLUDED_PATH in p:
             return False

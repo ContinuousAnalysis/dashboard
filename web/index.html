@@ -343,7 +343,7 @@
       const tbody = table.querySelector("tbody");
       (p.prs || []).forEach(pr => {
         const prLabel = pr.pr_number != null ? `#${pr.pr_number}` : "—";
-        const prLinkUrl = p.full_name ? `https://github.com/${p.full_name}/pull/${pr.pr_number}` : null;
+        const prLinkUrl = p.url ? (p.url.replace(/\.git$/i, "").replace(/\/+$/, "") + "/pull/" + pr.pr_number) : null;
         tbody.append(el("tr", {},
           el("td", {class:"nowrap"}, el("a", {href:`#/pr/p/${p.slug}/r/${pr.pr_number}`}, prLabel)),
           el("td", {class:"nowrap"}, prLinkUrl ? el("a", {href: prLinkUrl, target: "_blank"}, "Open") : "—"),
@@ -366,7 +366,7 @@
         {text: `PR #${pr.pr_number}`}
       ]));
 
-      const prUrl = p.full_name ? `https://github.com/${p.full_name}/pull/${pr.pr_number}` : null;
+      const prUrl = p.url ? (p.url.replace(/\.git$/i, "").replace(/\/+$/, "") + "/pull/" + pr.pr_number) : null;
       const prInfo = [
         el("div", {}, el("strong", {}, "PR: "), el("code", {}, `#${pr.pr_number}`)),
         prUrl ? el("div", {}, el("strong", {}, "PR link: "), el("a", {href: prUrl, target: "_blank", style:"color:#2563eb; word-break:break-all;"}, prUrl)) : null,
