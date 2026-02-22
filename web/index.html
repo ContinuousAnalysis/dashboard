@@ -335,8 +335,8 @@
         el("thead", {}, el("tr", {},
           el("th", {}, "PR"),
           el("th", {}, "Link"),
-          el("th", {}, "Commit"),
-          el("th", {}, "New unique violations")
+          el("th", {style:"text-align:right;"}, "Commit"),
+          el("th", {style:"text-align:right;"}, "New unique violations")
         )),
         el("tbody")
       );
@@ -346,9 +346,9 @@
         const prLinkUrl = p.url ? (p.url.replace(/\.git$/i, "").replace(/\/+$/, "") + "/pull/" + pr.pr_number) : null;
         tbody.append(el("tr", {},
           el("td", {class:"nowrap"}, el("a", {href:`#/pr/p/${p.slug}/r/${pr.pr_number}`}, prLabel)),
-          el("td", {class:"nowrap"}, prLinkUrl ? el("a", {href: prLinkUrl, target: "_blank"}, "Open") : "—"),
-          el("td", {class:"nowrap"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
-          el("td", {}, String(pr.num_new_violations ?? 0))
+          el("td", {class:"nowrap", style:"max-width:320px; word-break:break-all;"}, prLinkUrl ? el("a", {href: prLinkUrl, target: "_blank", style:"color:#2563eb;"}, prLinkUrl) : "—"),
+          el("td", {class:"nowrap", style:"text-align:right;"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
+          el("td", {style:"text-align:right;"}, String(pr.num_new_violations ?? 0))
         ));
       });
       app.append(table);
