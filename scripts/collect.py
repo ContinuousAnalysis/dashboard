@@ -824,21 +824,23 @@ def build_dataset_pr() -> dict:
     """
     EXCLUDED_PATH = "/specs-new/"
 
-    def is_project_violation(file_path: str) -> bool:
-        """Only keep violations from the project; exclude python3.12, site-packages, <frozen, and other excluded paths."""
+    def categorize_violation(file_path: str) -> str:
+        """
+        Classify a violation by its file path for PR analysis:
+        - \"cut\"        : project code (default)
+        - \"dependency\" : paths under site-packages
+        - \"python\"    : paths under python3.12
+        - \"excluded\"  : internal specs-new helper files we don't surface
+        """
         p = file_path or ""
-        if "python3.12" in p or "site-packages" in p or "<frozen" in p:
-            return False
-        if EXCLUDED_PATH in p:
-            return False
-        return True
+        if EXCLUDED_PATH in p or "<frozen" in p:
+            return "excluded"
+        if "site-packages" in p:
+            return "dependency"
+        if "python3.12" in p:
+            return "python"
+        return "cut"
 
-    def count_unique_violations(locs_list: List[dict]) -> int:
-        unique_locs = set()
-        for v in locs_list:
-            if is_project_violation(v.get("file", "")):
-                unique_locs.add((v["file"], v["line"]))
-        return len(unique_locs)
 
     projects_out = []
     total_prs = 0
@@ -902,11 +904,10 @@ def build_dataset_pr() -> dict:
                     continue
                 new_v = str(r.get("new_violations", "") or "").strip()
                 new_locs = parse_vloc_cell(new_v) if new_v else []
-                num_new = count_unique_violations(new_locs)
                 # Build violations list (same structure as commit violations) for detail view
                 by_loc: Dict[Tuple[str, int], dict] = {}
                 for v in new_locs:
-                    if not is_project_violation(v.get("file", "")):
+                    if categorize_violation(v.get("file", "")) == "excluded":
                         continue
                     key = (v["file"], v["line"])
                     rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
@@ -925,7 +926,6 @@ def build_dataset_pr() -> dict:
                 proj["prs"].append({
                     "pr_number": pr_num,
                     "sha": sha,
-                    "num_new_violations": num_new,
                     "violations": violations
                 })
                 total_prs += 1

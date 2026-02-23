@@ -163,6 +163,18 @@
     function findViolation(c, id){ return (c.violations||[]).find(v => v.id === id); }
     function findPr(p, prNum) { const n = parseInt(prNum, 10); return (p.prs||[]).find(pr => pr.pr_number === n || pr.pr_number === prNum); }
 
+    // Classify a PR violation into CUT / dependency / Python buckets based on its file path
+    // CUT: project files (default)
+    // dependency: path contains "site-packages"
+    // Python: path contains "python3.12"
+    function classifyPrViolation(v) {
+      const p = (v.file || "").toLowerCase();
+      const isDep = p.includes("site-packages");
+      const isPy = p.includes("python3.12");
+      const isCut = !isDep && !isPy;
+      return { isCut, isDep, isPy };
+    }
+
     // --------- Views ---------
     function renderHome(app, ds, kind){
       if (!ds) return app.append(el("div", {}, "No data"));
@@ -278,17 +290,35 @@
       projects.filter(p => (p.prs || []).length > 0).forEach(p => {
         const prs = p.prs || [];
         const prCount = prs.length;
-        const totalNewViolations = prs.reduce((sum, pr) => sum + (pr.num_new_violations ?? 0), 0);
-        const hasNewViolations = totalNewViolations > 0;
+
+        // Aggregate CUT / dependency / Python new unique violations across all PRs in this project
+        let cutTotal = 0, depTotal = 0, pyTotal = 0;
+        prs.forEach(pr => {
+          (pr.violations || []).forEach(v => {
+            const cls = classifyPrViolation(v);
+            if (cls.isCut) cutTotal += 1;
+            if (cls.isDep) depTotal += 1;
+            if (cls.isPy) pyTotal += 1;
+          });
+        });
+
         const pillsContainer = el("div", {style:"margin-top:8px;"});
-        const violationsPillStyle = hasNewViolations
-          ? "background:#fef2f2; color:#dc2626; border:1px solid #fecaca;"
-          : "";
+        const hasAnyNew = (cutTotal + depTotal + pyTotal) > 0;
+        const basePillStyle = "margin-right:4px;";
+        const cutStyle = cutTotal > 0 ? basePillStyle + "background:#fef2f2; color:#b91c1c; border:1px solid #fecaca;" : basePillStyle;
+        const depStyle = depTotal > 0 ? basePillStyle + "background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;" : basePillStyle;
+        const pyStyle = pyTotal > 0 ? basePillStyle + "background:#ecfdf3; color:#166534; border:1px solid #bbf7d0;" : basePillStyle;
+
         pillsContainer.append(
-          el("span", {class:"pill"}, `PRs: ${prCount}`),
+          el("span", {class:"pill", style:basePillStyle}, `PRs: ${prCount}`),
           " ",
-          el("span", {class:"pill", style:violationsPillStyle}, `New unique violations: ${totalNewViolations}`)
+          el("span", {class:"pill", style:cutStyle}, `New unique (CUT): ${cutTotal}`),
+          " ",
+          el("span", {class:"pill", style:depStyle}, `New unique (Dependency): ${depTotal}`),
+          " ",
+          el("span", {class:"pill", style:pyStyle}, `New unique (Python): ${pyTotal}`)
         );
+
         grid.append(el("div", {class:"card"},
           el("h3", {}, el("a", {href:`#/pr/p/${p.slug}`}, p.full_name)),
           pillsContainer
@@ -335,6 +365,20 @@
         app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
       }
 
+      // Mode selector: choose which violation categories to include in counts
+      let prViewMode = "cut"; // "cut", "cut+dep", "all"
+      const modeBar = el("div", {class:"controls", style:"margin:8px 0; gap:8px;"});
+      const btnCut = el("button", {class:"tab", style:"padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:var(--active); color:white; font-size:12px; cursor:pointer;"}, "CUT only");
+      const btnCutDep = el("button", {class:"tab", style:"padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:#fafafa; font-size:12px; cursor:pointer;"}, "CUT + Dependency");
+      const btnAll = el("button", {class:"tab", style:"padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:#fafafa; font-size:12px; cursor:pointer;"}, "CUT + Dependency + Python");
+      modeBar.append(
+        el("span", {class:"muted"}, "Count mode:"),
+        btnCut,
+        btnCutDep,
+        btnAll
+      );
+      app.append(modeBar);
+
       const table = el("table", {},
         el("thead", {}, el("tr", {},
           el("th", {}, "PR"),
@@ -345,16 +389,51 @@
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
-      (p.prs || []).forEach(pr => {
-        const prLabel = pr.pr_number != null ? `#${pr.pr_number}` : "—";
-        const prLinkUrl = p.url ? (p.url.replace(/\.git$/i, "").replace(/\/+$/, "") + "/pull/" + pr.pr_number) : null;
-        tbody.append(el("tr", {},
-          el("td", {class:"nowrap"}, el("a", {href:`#/pr/p/${p.slug}/r/${pr.pr_number}`}, prLabel)),
-          el("td", {class:"nowrap", style:"max-width:320px; word-break:break-all;"}, prLinkUrl ? el("a", {href: prLinkUrl, target: "_blank", style:"color:#2563eb;"}, prLinkUrl) : "—"),
-          el("td", {class:"nowrap", style:"text-align:right;"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
-          el("td", {style:"text-align:right;"}, String(pr.num_new_violations ?? 0))
-        ));
-      });
+
+      function computePrNewForMode(pr) {
+        let count = 0;
+        (pr.violations || []).forEach(v => {
+          const cls = classifyPrViolation(v);
+          const include =
+            prViewMode === "cut"
+              ? cls.isCut
+              : prViewMode === "cut+dep"
+                ? (cls.isCut || cls.isDep)
+                : (cls.isCut || cls.isDep || cls.isPy);
+          if (include) count += 1;
+        });
+        return count;
+      }
+
+      function updateModeButtons() {
+        const activeStyle = "padding:4px 10px; border:1px solid var(--active); border-radius:999px; background:var(--active); color:white; font-size:12px; cursor:pointer;";
+        const inactiveStyle = "padding:4px 10px; border:1px solid var(--border); border-radius:999px; background:#fafafa; font-size:12px; cursor:pointer;";
+        btnCut.setAttribute("style", prViewMode === "cut" ? activeStyle : inactiveStyle);
+        btnCutDep.setAttribute("style", prViewMode === "cut+dep" ? activeStyle : inactiveStyle);
+        btnAll.setAttribute("style", prViewMode === "all" ? activeStyle : inactiveStyle);
+      }
+
+      function drawPrTable() {
+        tbody.innerHTML = "";
+        (p.prs || []).forEach(pr => {
+          const prLabel = pr.pr_number != null ? `#${pr.pr_number}` : "—";
+          const prLinkUrl = p.url ? (p.url.replace(/\.git$/i, "").replace(/\/+$/, "") + "/pull/" + pr.pr_number) : null;
+          const newCount = computePrNewForMode(pr);
+          tbody.append(el("tr", {},
+            el("td", {class:"nowrap"}, el("a", {href:`#/pr/p/${p.slug}/r/${pr.pr_number}`}, prLabel)),
+            el("td", {class:"nowrap", style:"max-width:320px; word-break:break-all;"}, prLinkUrl ? el("a", {href: prLinkUrl, target: "_blank", style:"color:#2563eb;"}, prLinkUrl) : "—"),
+            el("td", {class:"nowrap", style:"text-align:right;"}, pr.sha ? pr.sha.slice(0, 7) : "—"),
+            el("td", {style:"text-align:right;"}, String(newCount))
+          ));
+        });
+      }
+
+      btnCut.addEventListener("click", () => { prViewMode = "cut"; updateModeButtons(); drawPrTable(); });
+      btnCutDep.addEventListener("click", () => { prViewMode = "cut+dep"; updateModeButtons(); drawPrTable(); });
+      btnAll.addEventListener("click", () => { prViewMode = "all"; updateModeButtons(); drawPrTable(); });
+
+      updateModeButtons();
+      drawPrTable();
       app.append(table);
     }
 
@@ -375,7 +454,7 @@
         el("div", {}, el("strong", {}, "PR: "), el("code", {}, `#${pr.pr_number}`)),
         prUrl ? el("div", {}, el("strong", {}, "PR link: "), el("a", {href: prUrl, target: "_blank", style:"color:#2563eb; word-break:break-all;"}, prUrl)) : null,
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, pr.sha || "—")),
-        el("div", {}, el("strong", {}, "New unique violations: "), String(pr.num_new_violations ?? 0))
+        // Summary now comes from mode-specific counts in the table; no single num_new_violations field
       ].filter(Boolean);
       app.append(el("div", {class:"card"}, ...prInfo));
 
