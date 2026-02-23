@@ -309,15 +309,20 @@
         const depStyle = depTotal > 0 ? basePillStyle + "background:#eff6ff; color:#1d4ed8; border:1px solid #bfdbfe;" : basePillStyle;
         const pyStyle = pyTotal > 0 ? basePillStyle + "background:#ecfdf3; color:#166534; border:1px solid #bbf7d0;" : basePillStyle;
 
-        pillsContainer.append(
+        // Two rows of pills:
+        // Row 1: PRs + CUT
+        // Row 2: dependency + Python
+        const row1 = el("div", {style:"display:flex; flex-wrap:wrap; gap:4px; margin-bottom:4px;"});
+        row1.append(
           el("span", {class:"pill", style:basePillStyle}, `PRs: ${prCount}`),
-          " ",
-          el("span", {class:"pill", style:cutStyle}, `New unique (CUT): ${cutTotal}`),
-          " ",
+          el("span", {class:"pill", style:cutStyle}, `New unique (CUT): ${cutTotal}`)
+        );
+        const row2 = el("div", {style:"display:flex; flex-wrap:wrap; gap:4px;"});
+        row2.append(
           el("span", {class:"pill", style:depStyle}, `New unique (Dependency): ${depTotal}`),
-          " ",
           el("span", {class:"pill", style:pyStyle}, `New unique (Python): ${pyTotal}`)
         );
+        pillsContainer.append(row1, row2);
 
         grid.append(el("div", {class:"card"},
           el("h3", {}, el("a", {href:`#/pr/p/${p.slug}`}, p.full_name)),
