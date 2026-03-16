@@ -54,6 +54,7 @@
     <a id="tab-now" class="tab" href="#/now">Monitoring</a>
     <a id="tab-hist" class="tab" href="#/hist">History</a>
     <a id="tab-pr" class="tab" href="#/pr">PR Analysis</a>
+    <a id="tab-survey" class="tab" href="#/survey">Survey</a>
   </div>
 
   <div id="app"></div>
@@ -116,6 +117,7 @@
       document.getElementById("tab-now").classList.toggle("active", kind==="now");
       document.getElementById("tab-hist").classList.toggle("active", kind==="hist");
       document.getElementById("tab-pr").classList.toggle("active", kind==="pr");
+      document.getElementById("tab-survey").classList.toggle("active", kind==="survey");
     }
 
     function pickDataset(kind){
@@ -130,14 +132,24 @@
       const app = document.getElementById("app");
       app.innerHTML = "";
       const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-      const kind = (parts[0]==="hist") ? "hist" : (parts[0]==="pr") ? "pr" : "now";
+      const kind = (parts[0]==="hist")
+        ? "hist"
+        : (parts[0]==="pr")
+          ? "pr"
+          : (parts[0]==="survey")
+            ? "survey"
+            : "now";
       setActiveTab(kind);
-      const ds = pickDataset(kind);
+      const ds = kind === "survey" ? null : pickDataset(kind);
       const tail = parts.slice(1);
 
       if (tail.length === 0) {
         if (kind === "pr") return renderPrHome(app, ds);
+        if (kind === "survey") return renderSurveyHome(app);
         return renderHome(app, ds, kind);
+      }
+      if (kind === "survey" && tail[0] === "p" && tail[1] && tail.length === 2) {
+        return renderSurveyProject(app, tail[1]);
       }
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail[4] === "v" && tail[5]) return renderPrViolation(app, ds, tail[1], tail[3], tail[5]);
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail.length === 4) return renderPrDetail(app, ds, tail[1], tail[3]);
@@ -147,6 +159,25 @@
       if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail[4] === "v" && tail[5]) return renderViolation(app, ds, kind, tail[1], tail[3], tail[5]);
 
       app.append(el("div", {}, "Not found"));
+    }
+
+    // Survey helpers
+    function getSurveyProjects() {
+      if (!DATA) return [];
+      // Prefer structured dataset from collect.py: datasets.survey.projects
+      if (DATA.datasets && DATA.datasets.survey) {
+        const ds = DATA.datasets.survey;
+        if (Array.isArray(ds.projects)) return ds.projects;
+        if (Array.isArray(ds)) return ds;
+      }
+      // Backward-compat: flat survey_data array at top-level
+      if (Array.isArray(DATA.survey_data)) return DATA.survey_data;
+      return [];
+    }
+
+    function findSurveyProject(slug) {
+      const projects = getSurveyProjects();
+      return projects.find(p => p.slug === slug);
     }
 
     // --------- Common helpers ---------
@@ -176,6 +207,184 @@
     }
 
     // --------- Views ---------
+    function renderSurveyHome(app) {
+      const projects = getSurveyProjects();
+      if (!projects.length) {
+        return app.append(el("div", {}, "No survey data"));
+      }
+
+      const summaryParts = [
+        el("strong", {}, "Total survey projects: "), String(projects.length)
+      ];
+      app.append(el("div", {class:"card"}, ...summaryParts));
+
+      const grid = el("div", {class:"grid"});
+
+      projects.forEach(p => {
+        const commits = (p.commits || []);
+        const latest = commits.reduce((best, c) => {
+          if (!best) return c;
+          const tBest = best.ts || best.current_commit_timestamp || 0;
+          const tCur = c.ts || c.current_commit_timestamp || 0;
+          return tCur > tBest ? c : best;
+        }, null);
+
+        const latestTs = latest ? (latest.ts || latest.current_commit_timestamp || 0) : 0;
+        const latestSha = latest ? (latest.current_commit_sha || latest.sha || "") : "";
+        const latestViolations = latest ? (latest.violations || []) : [];
+
+        const allViolationIds = new Set();
+        commits.forEach(cc => {
+          (cc.violations || []).forEach(v => {
+            if (v.id) allViolationIds.add(v.id);
+          });
+        });
+        const uniqueLocations = allViolationIds.size;
+
+        const body = el("div", {},
+          el("div", {class:"muted"}, `Latest commit: ${latestSha ? latestSha.slice(0,7) : "N/A"}`),
+          el("div", {class:"muted"}, `Latest commit time: ${fmtUTC(latestTs)}`),
+          el("div", {style:"margin-top:8px;"},
+            el("span", {class:"pill"}, `Latest violations: ${latestViolations.length}`),
+            " ",
+            el("span", {class:"pill"}, `Unique violations (all history): ${uniqueLocations}`)
+          )
+        );
+
+        const card = el("div", {class:"card", style:"cursor:pointer;"},
+          el("h3", {}, p.full_name || p.slug || "Project"),
+          body
+        );
+        card.addEventListener("click", () => {
+          location.hash = `#/survey/p/${p.slug}`;
+        });
+        grid.append(card);
+      });
+
+      app.append(grid);
+    }
+
+    function renderSurveyProject(app, slug) {
+      const p = findSurveyProject(slug);
+      if (!p) return app.append(el("div", {}, "Survey project not found"));
+
+      app.append(breadcrumb([{href:"#/survey", text:"Survey"}, {text: p.full_name || p.slug}]));
+
+      const commits = (p.commits || []).slice().sort((a, b) => {
+        const ta = a.ts || a.current_commit_timestamp || 0;
+        const tb = b.ts || b.current_commit_timestamp || 0;
+        return tb - ta;
+      });
+
+      const latest = commits[0] || null;
+      const latestSha = latest ? (latest.current_commit_sha || latest.sha || "") : "";
+
+      const selectorRow = el("div", {class:"controls", style:"margin-bottom:8px;"},
+        el("span", {class:"muted"}, "Commit: ")
+      );
+
+      const select = el("select", {style:"padding:4px 8px; border-radius:6px; border:1px solid var(--border);"});
+      commits.forEach(c => {
+        const sha = c.current_commit_sha || c.sha || "";
+        const label = sha ? sha.slice(0,7) : "N/A";
+        const ts = c.ts || c.current_commit_timestamp || 0;
+        const optLabel = `${label} (${ts ? fmtUTC(ts) : "no time"})`;
+        const opt = el("option", {value: sha}, optLabel);
+        if (sha === latestSha) opt.selected = true;
+        select.append(opt);
+      });
+
+      selectorRow.append(select);
+      app.append(selectorRow);
+
+      const infoCard = el("div", {class:"card"});
+      app.append(infoCard);
+
+      const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
+      app.append(input);
+
+      const table = el("table",
+        {},
+        el("thead", {}, el("tr", {},
+          el("th", {}, "File"),
+          el("th", {}, "Line"),
+          el("th", {}, "Specs"),
+          el("th", {}, "Total Occurrences")
+        )),
+        el("tbody")
+      );
+      const tbody = table.querySelector("tbody");
+      app.append(table);
+
+      function getCommitBySha(sha) {
+        if (!sha) return latest;
+        return commits.find(c => (c.current_commit_sha || c.sha) === sha) || latest;
+      }
+
+      function draw() {
+        const sha = select.value || latestSha;
+        const c = getCommitBySha(sha);
+
+        infoCard.innerHTML = "";
+        if (!c) {
+          infoCard.append(el("div", {}, "No commit data"));
+        } else {
+          const ts = c.ts || c.current_commit_timestamp || 0;
+          const violations = c.violations || [];
+
+          const numCurrent = (c.counts && typeof c.counts.locations === "number")
+            ? c.counts.locations
+            : (c.num_current_violations ?? violations.length ?? 0);
+          const numNew = c.num_new_violations ?? 0;
+          const numOld = c.num_old_violations ?? 0;
+
+          const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
+          if (numNew > 0 && numOld > 0) {
+            violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+            violationParts.push(el("span", {style:"color:#16a34a; margin-left:4px;"}, `(-${numOld})`));
+          } else if (numNew > 0) {
+            violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+          } else if (numOld > 0) {
+            violationParts.push(el("span", {style:"color:#16a34a; margin-left:8px;"}, `(-${numOld})`));
+          } else if (numNew === 0 && numOld === 0) {
+            violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
+          }
+
+          infoCard.append(
+            el("div", {}, el("strong", {}, "Project: "), p.full_name || p.slug),
+            el("div", {}, el("strong", {}, "Commit: "), sha ? el("code", {}, sha) : "—"),
+            el("div", {}, el("strong", {}, "Timestamp: "), ts ? fmtET(ts) : "—"),
+            el("div", {}, el("strong", {}, "Unique Violations: "), ...violationParts),
+            el("div", {class:"muted", style:"margin-top:8px;"},
+              "Showing violations for the selected commit. Use the dropdown above to view history."
+            )
+          );
+        }
+
+        tbody.innerHTML = "";
+        if (!c || !Array.isArray(c.violations)) return;
+
+        const q = (input.value || "").toLowerCase();
+        (c.violations || [])
+          .filter(v =>
+            (v.file || "").toLowerCase().includes(q) ||
+            String(v.line).includes(q) ||
+            (v.specs || "").toLowerCase().includes(q)
+          )
+          .forEach(v => {
+            tbody.append(el("tr", {},
+              el("td", {class:"nowrap"}, v.file),
+              el("td", {}, String(v.line)),
+              el("td", {}, v.specs || "—"),
+              el("td", {}, String(v.count || 0))
+            ));
+          });
+      }
+
+      select.addEventListener("change", draw);
+      input.addEventListener("input", draw);
+      draw();
+    }
     function renderHome(app, ds, kind){
       if (!ds) return app.append(el("div", {}, "No data"));
       const totals = ds.totals || {commits:0, locations:0};

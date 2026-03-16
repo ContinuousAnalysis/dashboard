@@ -10,6 +10,8 @@ OUT  = ROOT / "dist"
 WEB  = ROOT / "web"
 DATA = ROOT / "data"
 CUMULATIVE_DIR = ROOT / "cumulative_results"
+SURVEY_DATA_DIR = ROOT / "survey_data"
+SURVEY_CUMULATIVE_DIR = ROOT / "survey_cumulative_results"
 OUT.mkdir(parents=True, exist_ok=True)
 
 CONFIG = json.loads((ROOT / "config" / "settings.json").read_text())
@@ -229,11 +231,11 @@ def parse_time(val) -> float:
     except (ValueError, TypeError):
         return -5.0
 
-def load_cumulative_times(project_name: str) -> Dict[str, Dict[str, float]]:
+def load_cumulative_times(project_name: str, base_dir: pathlib.Path = CUMULATIVE_DIR) -> Dict[str, Dict[str, float]]:
     """Load end-to-end times from cumulative results CSV for a project."""
     # Extract repo name from project name (e.g., "owner/repo" -> "repo")
     repo_name = project_name.split('/')[-1] if '/' in project_name else project_name
-    cumulative_csv = CUMULATIVE_DIR / f"{repo_name}-cumulative-results.csv"
+    cumulative_csv = base_dir / f"{repo_name}-cumulative-results.csv"
     
     if not cumulative_csv.exists():
         return {}
@@ -545,7 +547,7 @@ def build_dataset(prefixes: List[str], compute_after_first: bool = False) -> dic
         totals["removed_locations_after_first"] = total_removed_after_first
     return {"projects": projects_out, "totals": totals}
 
-def build_dataset_from_local(compute_after_first: bool = False) -> dict:
+def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathlib.Path = DATA, cumulative_dir: pathlib.Path = CUMULATIVE_DIR) -> dict:
     """
     Reads CSV files from local data directory.
     CSV filename should match the repo name (part after '/' in full repo name).
@@ -794,12 +796,12 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
         configured_repo_names.add(repo)
 
         # CSV filename is the repo name
-        csv_path = DATA / f"{repo}.csv"
+        csv_path = data_dir / f"{repo}.csv"
         process_one_project(full, csv_path, repo_url_map.get(full), repo_date_map.get(full))
 
     # Then, add any remaining CSV files in the data directory as standalone projects
     # (these may not appear in repos.txt). The file stem becomes the repo name.
-    for csv_path in DATA.glob("*.csv"):
+    for csv_path in data_dir.glob("*.csv"):
         repo_name = csv_path.stem
         if repo_name in configured_repo_names:
             continue  # already processed via repos.txt mapping
@@ -813,6 +815,19 @@ def build_dataset_from_local(compute_after_first: bool = False) -> dict:
         totals["new_locations_after_first"] = total_new_after_first
         totals["removed_locations_after_first"] = total_removed_after_first
     return {"projects": projects_out, "totals": totals}
+
+
+def build_survey_dataset() -> dict:
+    """
+    Build a dataset for the survey tab using CSVs in survey_data/ and
+    cumulative end-to-end times in survey_cumulative_results/.
+    """
+    # Reuse build_dataset_from_local with survey-specific directories.
+    return build_dataset_from_local(
+        compute_after_first=True,
+        data_dir=SURVEY_DATA_DIR,
+        cumulative_dir=SURVEY_CUMULATIVE_DIR,
+    )
 
 
 def build_dataset_pr() -> dict:
@@ -943,7 +958,8 @@ def build():
         "datasets": {
             "monitoring": build_dataset(MON_PREFIXES, compute_after_first=True),
             "history":    build_dataset_from_local(compute_after_first=True),
-            "pr":         build_dataset_pr()
+            "pr":         build_dataset_pr(),
+            "survey":     build_survey_dataset(),
         }
     }
     (OUT / "data.json").write_text(json.dumps(payload, indent=2), encoding="utf-8")
