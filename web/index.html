@@ -320,13 +320,14 @@
       function draw() {
         const sha = latestSha;
         const c = latest;
+        let violations = [];
 
         infoCard.innerHTML = "";
         if (!c) {
           infoCard.append(el("div", {}, "No commit data"));
         } else {
           const ts = c.current_commit_timestamp || 0;
-          const violations = c.all_violations || c.violations || [];
+          violations = c.all_violations || c.violations || [];
 
           const numCurrent = (c.counts && typeof c.counts.locations === "number")
             ? c.counts.locations
