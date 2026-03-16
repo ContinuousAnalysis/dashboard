@@ -139,6 +139,14 @@
           : (parts[0]==="survey")
             ? "survey"
             : "now";
+
+      // In survey flows, hide the top-level tabs so participants
+      // can't navigate to other dashboard pages.
+      const tabsEl = document.querySelector(".tabs");
+      if (tabsEl) {
+        tabsEl.style.display = (kind === "survey") ? "none" : "flex";
+      }
+
       setActiveTab(kind);
       const ds = kind === "survey" ? null : pickDataset(kind);
       const tail = parts.slice(1);
@@ -221,44 +229,9 @@
       const grid = el("div", {class:"grid"});
 
       projects.forEach(p => {
-        const commits = (p.commits || []);
-        const latest = commits.reduce((best, c) => {
-          if (!best) return c;
-          const tBest = best.ts || best.current_commit_timestamp || 0;
-          const tCur = c.ts || c.current_commit_timestamp || 0;
-          return tCur > tBest ? c : best;
-        }, null);
-
-        const latestTs = latest ? (latest.ts || latest.current_commit_timestamp || 0) : 0;
-        const latestSha = latest ? (latest.current_commit_sha || latest.sha || "") : "";
-        const latestViolations = latest ? (latest.violations || []) : [];
-
-        const allViolationIds = new Set();
-        commits.forEach(cc => {
-          (cc.violations || []).forEach(v => {
-            if (v.id) allViolationIds.add(v.id);
-          });
-        });
-        const uniqueLocations = allViolationIds.size;
-
-        const body = el("div", {},
-          el("div", {class:"muted"}, `Latest commit: ${latestSha ? latestSha.slice(0,7) : "N/A"}`),
-          el("div", {class:"muted"}, `Latest commit time: ${fmtUTC(latestTs)}`),
-          el("div", {style:"margin-top:8px;"},
-            el("span", {class:"pill"}, `Latest violations: ${latestViolations.length}`),
-            " ",
-            el("span", {class:"pill"}, `Unique violations (all history): ${uniqueLocations}`)
-          )
-        );
-
-        const card = el("div", {class:"card", style:"cursor:pointer;"},
-          el("h3", {}, p.full_name || p.slug || "Project"),
-          body
-        );
-        card.addEventListener("click", () => {
-          location.hash = `#/survey/p/${p.slug}`;
-        });
-        grid.append(card);
+        grid.append(el("div", {class:"card"},
+          el("h3", {}, el("a", {href:`#/survey/p/${p.slug}`}, p.full_name || p.slug || "Project"))
+        ));
       });
 
       app.append(grid);
