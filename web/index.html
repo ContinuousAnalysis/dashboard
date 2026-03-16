@@ -268,32 +268,11 @@
       );
       app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
 
-      const commits = (p.commits || []).slice().sort((a, b) => {
-        const ta = a.ts || a.current_commit_timestamp || 0;
-        const tb = b.ts || b.current_commit_timestamp || 0;
-        return tb - ta;
-      });
-
+      // Survey: there should be exactly one commit (latest row from CSV),
+      // so we just take the first commit and do not show a selector.
+      const commits = (p.commits || []);
       const latest = commits[0] || null;
       const latestSha = latest ? (latest.current_commit_sha || latest.sha || "") : "";
-
-      const selectorRow = el("div", {class:"controls", style:"margin-bottom:8px;"},
-        el("span", {class:"muted"}, "Commit: ")
-      );
-
-      const select = el("select", {style:"padding:4px 8px; border-radius:6px; border:1px solid var(--border);"});
-      commits.forEach(c => {
-        const sha = c.current_commit_sha || c.sha || "";
-        const label = sha ? sha.slice(0,7) : "N/A";
-        const ts = c.ts || c.current_commit_timestamp || 0;
-        const optLabel = `${label} (${ts ? fmtUTC(ts) : "no time"})`;
-        const opt = el("option", {value: sha}, optLabel);
-        if (sha === latestSha) opt.selected = true;
-        select.append(opt);
-      });
-
-      selectorRow.append(select);
-      app.append(selectorRow);
 
       const infoCard = el("div", {class:"card"});
       app.append(infoCard);
@@ -314,14 +293,9 @@
       const tbody = table.querySelector("tbody");
       app.append(table);
 
-      function getCommitBySha(sha) {
-        if (!sha) return latest;
-        return commits.find(c => (c.current_commit_sha || c.sha) === sha) || latest;
-      }
-
       function draw() {
-        const sha = select.value || latestSha;
-        const c = getCommitBySha(sha);
+        const sha = latestSha;
+        const c = latest;
 
         infoCard.innerHTML = "";
         if (!c) {
