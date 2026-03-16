@@ -140,16 +140,17 @@
             ? "survey"
             : "now";
 
-      // In survey flows, hide the top-level tabs so participants
-      // can't navigate to other dashboard pages.
-      const tabsEl = document.querySelector(".tabs");
-      if (tabsEl) {
-        tabsEl.style.display = (kind === "survey") ? "none" : "flex";
-      }
-
       setActiveTab(kind);
       const ds = kind === "survey" ? null : pickDataset(kind);
       const tail = parts.slice(1);
+
+      // Hide the top-level tabs only on survey project/detail pages,
+      // keep them visible on the root survey page.
+      const tabsEl = document.querySelector(".tabs");
+      if (tabsEl) {
+        const hideTabsForSurvey = (kind === "survey" && tail.length > 0);
+        tabsEl.style.display = hideTabsForSurvey ? "none" : "flex";
+      }
 
       if (tail.length === 0) {
         if (kind === "pr") return renderPrHome(app, ds);
@@ -243,6 +244,30 @@
 
       app.append(breadcrumb([{href:"#/survey", text:"Survey"}, {text: p.full_name || p.slug}]));
 
+      // Project Metadata (same style as other tabs)
+      const urlBoxContent = [
+        el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
+      ];
+      urlBoxContent.push(
+        el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
+          el("span", {}, "Project: "),
+          el("span", {}, p.full_name || p.slug || "Project")
+        )
+      );
+      urlBoxContent.push(
+        el("div", {style:"display:flex; align-items:center; gap:8px;"},
+          el("span", {}, "Project URL: "),
+          p.url
+            ? el("a", {
+                href: p.url,
+                target: "_blank",
+                style: "color:#2563eb; word-break:break-all;"
+              }, p.url)
+            : el("span", {class:"muted"}, "—")
+        )
+      );
+      app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
+
       const commits = (p.commits || []).slice().sort((a, b) => {
         const ta = a.ts || a.current_commit_timestamp || 0;
         const tb = b.ts || b.current_commit_timestamp || 0;
@@ -324,8 +349,16 @@
           }
 
           infoCard.append(
-            el("div", {}, el("strong", {}, "Project: "), p.full_name || p.slug),
             el("div", {}, el("strong", {}, "Commit: "), sha ? el("code", {}, sha) : "—"),
+            el("div", {}, el("strong", {}, "Commit URL: "),
+              c.github_url
+                ? el("a", {
+                    href: c.github_url,
+                    target: "_blank",
+                    style: "color:#2563eb; word-break:break-all;"
+                  }, c.github_url)
+                : el("span", {class:"muted"}, "—")
+            ),
             el("div", {}, el("strong", {}, "Timestamp: "), ts ? fmtET(ts) : "—"),
             el("div", {}, el("strong", {}, "Unique Violations: "), ...violationParts),
             el("div", {class:"muted", style:"margin-top:8px;"},

@@ -12,6 +12,7 @@ DATA = ROOT / "data"
 CUMULATIVE_DIR = ROOT / "cumulative_results"
 SURVEY_DATA_DIR = ROOT / "survey_data"
 SURVEY_CUMULATIVE_DIR = ROOT / "survey_cumulative_results"
+SURVEY_REPOS_FILE = ROOT / "config" / "survey_repos.txt"
 OUT.mkdir(parents=True, exist_ok=True)
 
 CONFIG = json.loads((ROOT / "config" / "settings.json").read_text())
@@ -821,13 +822,39 @@ def build_survey_dataset() -> dict:
     """
     Build a dataset for the survey tab using CSVs in survey_data/ and
     cumulative end-to-end times in survey_cumulative_results/.
+    Project names + URLs are taken from config/survey_repos.txt.
     """
-    # Reuse build_dataset_from_local with survey-specific directories.
-    return build_dataset_from_local(
+    # Start from the generic local dataset builder, pointing at the
+    # survey-specific data and cumulative directories.
+    base = build_dataset_from_local(
         compute_after_first=True,
         data_dir=SURVEY_DATA_DIR,
         cumulative_dir=SURVEY_CUMULATIVE_DIR,
     )
+
+    # If we have a survey_repos mapping, use it to populate project URLs
+    # and ensure the displayed project name matches the repo name key.
+    if SURVEY_REPOS_FILE.exists():
+        survey_map = {}
+        for line in SURVEY_REPOS_FILE.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            parts = [p.strip() for p in line.split(";")]
+            repo_name = parts[0] if len(parts) > 0 else ""
+            url = parts[1] if len(parts) > 1 else None
+            if not repo_name:
+                continue
+            survey_map[repo_name] = url
+
+        for proj in base.get("projects", []):
+            name = proj.get("full_name") or ""
+            # For survey datasets created from CSVs, full_name is the CSV stem.
+            if name in survey_map:
+                proj["full_name"] = name
+                proj["url"] = survey_map[name]
+
+    return base
 
 
 def build_dataset_pr() -> dict:
