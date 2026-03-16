@@ -160,6 +160,9 @@
       if (kind === "survey" && tail[0] === "p" && tail[1] && tail.length === 2) {
         return renderSurveyProject(app, tail[1]);
       }
+      if (kind === "survey" && tail[0] === "p" && tail[1] && tail[2] === "hist" && tail.length === 3) {
+        return renderSurveyHistory(app, tail[1]);
+      }
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail[4] === "v" && tail[5]) return renderPrViolation(app, ds, tail[1], tail[3], tail[5]);
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail.length === 4) return renderPrDetail(app, ds, tail[1], tail[3]);
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail.length === 2) return renderPrProject(app, ds, tail[1]);
@@ -216,8 +219,14 @@
     }
 
     // --------- Views ---------
+    function renderSurveyHistory(app, slug) {
+      // Reuse the history view layout, but backed by the survey dataset
+      const ds = {projects: getSurveyProjects()};
+      return renderProject(app, ds, "hist", slug);
+    }
     function renderSurveyHome(app) {
-      const projects = getSurveyProjects();
+      // Only show survey projects that actually have data (at least one commit)
+      const projects = getSurveyProjects().filter(p => (p.commits || []).length > 0);
       if (!projects.length) {
         return app.append(el("div", {}, "No survey data"));
       }
@@ -243,6 +252,16 @@
       if (!p) return app.append(el("div", {}, "Survey project not found"));
 
       app.append(breadcrumb([{href:"#/survey", text:"Survey"}, {text: p.full_name || p.slug}]));
+
+      // Top-right button to view more history (survey-based)
+      const historyBtnRow = el("div", {style:"display:flex; justify-content:flex-end; margin:8px 0;"},
+        el("a", {
+          href: `#/survey/p/${p.slug}/hist`,
+          class: "pill",
+          style: "cursor:pointer;"
+        }, "View commit history")
+      );
+      app.append(historyBtnRow);
 
       // Project Metadata (same style as other tabs)
       const urlBoxContent = [
@@ -307,20 +326,6 @@
           const numCurrent = (c.counts && typeof c.counts.locations === "number")
             ? c.counts.locations
             : (c.num_current_violations ?? violations.length ?? 0);
-          const numNew = c.num_new_violations ?? 0;
-          const numOld = c.num_old_violations ?? 0;
-
-          const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
-          if (numNew > 0 && numOld > 0) {
-            violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
-            violationParts.push(el("span", {style:"color:#16a34a; margin-left:4px;"}, `(-${numOld})`));
-          } else if (numNew > 0) {
-            violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
-          } else if (numOld > 0) {
-            violationParts.push(el("span", {style:"color:#16a34a; margin-left:8px;"}, `(-${numOld})`));
-          } else if (numNew === 0 && numOld === 0) {
-            violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
-          }
 
           // Build commit URL directly from the project URL + "/commit/" + SHA
           let commitUrl = null;
@@ -341,9 +346,8 @@
                 : el("span", {class:"muted"}, "—")
             ),
             el("div", {}, el("strong", {}, "Timestamp: "), ts ? fmtET(ts) : "—"),
-            el("div", {}, el("strong", {}, "Unique Violations: "), ...violationParts),
-            el("div", {class:"muted", style:"margin-top:8px;"},
-              "Showing violations for the selected commit. Use the dropdown above to view history."
+            el("div", {}, el("strong", {}, "Unique Violations: "),
+              el("span", {style:"color:#6b7280;"}, String(numCurrent))
             )
           );
         }
