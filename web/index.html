@@ -348,15 +348,22 @@
             violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
           }
 
+          // Build commit URL directly from the project URL + "/commit/" + SHA
+          let commitUrl = null;
+          if (p.url && sha) {
+            const base = p.url.replace(/\.git$/i, "").replace(/\/+$/, "");
+            commitUrl = `${base}/commit/${sha}`;
+          }
+
           infoCard.append(
             el("div", {}, el("strong", {}, "Commit: "), sha ? el("code", {}, sha) : "—"),
             el("div", {}, el("strong", {}, "Commit URL: "),
-              c.github_url
+              commitUrl
                 ? el("a", {
-                    href: c.github_url,
+                    href: commitUrl,
                     target: "_blank",
                     style: "color:#2563eb; word-break:break-all;"
-                  }, c.github_url)
+                  }, commitUrl)
                 : el("span", {class:"muted"}, "—")
             ),
             el("div", {}, el("strong", {}, "Timestamp: "), ts ? fmtET(ts) : "—"),
