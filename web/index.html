@@ -253,13 +253,13 @@
 
       app.append(breadcrumb([{href:"#/survey", text:"Survey"}, {text: p.full_name || p.slug}]));
 
-      // Top-right button to view more history (survey-based)
+      // Top-right button to let participants view earlier commits (optional)
       const historyBtnRow = el("div", {style:"display:flex; justify-content:flex-end; margin:8px 0;"},
         el("a", {
           href: `#/survey/p/${p.slug}/hist`,
           class: "pill",
           style: "cursor:pointer;"
-        }, "View commit history")
+        }, "See earlier commits →")
       );
       app.append(historyBtnRow);
 
@@ -287,10 +287,15 @@
       );
       app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
 
-      // Survey: there should be exactly one commit (latest row from CSV),
-      // so we just take the first commit and do not show a selector.
+      // Survey: show the latest commit (by timestamp) for this project.
+      // We still keep all commits in the dataset for the history view.
       const commits = (p.commits || []);
-      const latest = commits[0] || null;
+      const latest = commits.reduce((best, c) => {
+        if (!best) return c;
+        const tBest = best.ts || best.current_commit_timestamp || 0;
+        const tCur = c.ts || c.current_commit_timestamp || 0;
+        return tCur > tBest ? c : best;
+      }, null);
       const latestSha = latest ? (latest.current_commit_sha || latest.sha || "") : "";
 
       const infoCard = el("div", {class:"card"});
