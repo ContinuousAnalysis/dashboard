@@ -372,7 +372,7 @@
           });
       }
 
-      select.addEventListener("change", draw);
+      // For survey, there is no commit selector; always show the latest commit.
       input.addEventListener("input", draw);
       draw();
     }
