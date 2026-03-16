@@ -287,13 +287,13 @@
       );
       app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
 
-      // Survey: show the latest commit (by timestamp) for this project.
+      // Survey: show the latest commit based on current_commit_timestamp.
       // We still keep all commits in the dataset for the history view.
-      const commits = (p.commits || []);
+      const commits = (p.commits || []).filter(c => c.current_commit_timestamp);
       const latest = commits.reduce((best, c) => {
         if (!best) return c;
-        const tBest = best.ts || best.current_commit_timestamp || 0;
-        const tCur = c.ts || c.current_commit_timestamp || 0;
+        const tBest = best.current_commit_timestamp;
+        const tCur  = c.current_commit_timestamp;
         return tCur > tBest ? c : best;
       }, null);
       const latestSha = latest ? (latest.current_commit_sha || latest.sha || "") : "";
@@ -325,7 +325,7 @@
         if (!c) {
           infoCard.append(el("div", {}, "No commit data"));
         } else {
-          const ts = c.ts || c.current_commit_timestamp || 0;
+          const ts = c.current_commit_timestamp || 0;
           const violations = c.violations || [];
 
           const numCurrent = (c.counts && typeof c.counts.locations === "number")
