@@ -820,23 +820,31 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
 
 def build_survey_dataset() -> dict:
     """
-    Build a dataset for the survey tab using CSVs in survey_data/.
+    Build a dataset for the survey tab using CSVs in survey_data/ and
+    cumulative end-to-end times in survey_cumulative_results/.
 
-    For each survey project:
-    - Take the LAST row in its CSV (latest run).
-    - Use current_violations (all violations) to build the violations list.
-    - Use current_violations-derived count for counts.locations.
-    - Project name + URL come from config/survey_repos.txt.
+    IMPORTANT:
+    - For survey *history* views, we want the full commit history,
+      computed in exactly the same way as the regular history runs.
+    - Only the survey *project* page (the main survey tab) needs
+      special handling to show just the latest commit.
+    - Therefore this function delegates to build_dataset_from_local
+      so we preserve all commits, deltas, and stats.
+
+    Project name + URL come from config/survey_repos.txt.
     """
-    EXCLUDED_PATH = "specs-new/NLTK_NonterminalSymbolMutability.py"
+    # Start from the generic local-history builder, but pointed at the
+    # survey-specific directories so we keep the full history.
+    base = build_dataset_from_local(
+        compute_after_first=True,
+        data_dir=SURVEY_DATA_DIR,
+        cumulative_dir=SURVEY_CUMULATIVE_DIR,
+    )
 
-    projects_out: List[dict] = []
-    total_commits = 0
-    total_locations = 0
-
-    # Load survey repo metadata: "repo_name;https://github.com/owner/repo"
-    survey_repos: List[Tuple[str, Optional[str]]] = []
+    # If we have a survey_repos mapping, use it to populate project URLs
+    # and ensure the displayed project name matches the repo name key.
     if SURVEY_REPOS_FILE.exists():
+        survey_map: Dict[str, Optional[str]] = {}
         for line in SURVEY_REPOS_FILE.read_text().splitlines():
             line = line.strip()
             if not line or line.startswith("#"):
@@ -844,124 +852,17 @@ def build_survey_dataset() -> dict:
             parts = [p.strip() for p in line.split(";")]
             repo_name = parts[0] if len(parts) > 0 else ""
             url = parts[1] if len(parts) > 1 else None
-            if repo_name:
-                survey_repos.append((repo_name, url))
-
-    for repo_name, url in survey_repos:
-        csv_path = SURVEY_DATA_DIR / f"{repo_name}.csv"
-        proj = {
-            "slug": repo_name.replace("/","-").lower(),
-            "full_name": repo_name,
-            "latest_artifact_name": csv_path.name if csv_path.exists() else None,
-            "url": url,
-            "shadowed_repo": repo_name,
-            "date_shadowing_started": None,
-            "commits": []
-        }
-
-        if not csv_path.exists():
-            projects_out.append(proj)
-            continue
-
-        try:
-            df = pd.read_csv(csv_path, dtype=str).fillna("")
-            df.columns = [c.strip().lower() for c in df.columns]
-
-            # Require at least timestamp, current_commit_sha, current_violations
-            required = {"timestamp", "current_commit_sha", "current_violations"}
-            if not required.issubset(df.columns) or len(df) == 0:
-                print(f"WARNING: Survey CSV missing required columns for {repo_name} ({csv_path}); found {df.columns.tolist()}")
-                projects_out.append(proj)
+            if not repo_name:
                 continue
+            survey_map[repo_name] = url
 
-            # Use the LAST row as the latest run
-            r = df.iloc[-1]
-            sha = str(r.get("current_commit_sha", "")).strip()
-            if not sha:
-                projects_out.append(proj)
-                continue
+        for proj in base.get("projects", []):
+            name = proj.get("full_name") or ""
+            if name in survey_map:
+                proj["full_name"] = name
+                proj["url"] = survey_map[name]
 
-            ts = to_epoch(r.get("timestamp", ""))
-            current_v = str(r.get("current_violations", "") or "").strip()
-            coverage = r.get("coverage", "")
-            commit_msg = r.get("current_commit_message", "")
-            commit_ts = r.get("current_commit_timestamp", "")
-
-            # Parse all violations from current_violations
-            current_locs = parse_vloc_cell_with_occurrence(current_v) if current_v else []
-
-            # Count unique violations by (file, line) - not by spec
-            def count_unique_violations(locs_list):
-                unique_locs = set()
-                for v in locs_list:
-                    if EXCLUDED_PATH not in v.get("file", ""):
-                        unique_locs.add((v["file"], v["line"]))
-                return len(unique_locs)
-
-            num_current_int = count_unique_violations(current_locs)
-
-            # Aggregate by (file, line), merging specs
-            by_loc: Dict[Tuple[str, int], dict] = {}
-            for v in current_locs:
-                if EXCLUDED_PATH in v.get("file", ""):
-                    continue
-                key = (v["file"], v["line"])
-                rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
-                rec["specs"].add(v["spec"])
-
-            violations = []
-            for (f, ln), rec in sorted(by_loc.items(), key=lambda t: (t[0][0], t[0][1])):
-                spec_list = sorted(rec["specs"])
-                violations.append({
-                    "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
-                    "file": f,
-                    "line": int(ln),
-                    "count": len(spec_list),
-                    "specs": ";".join(spec_list),
-                    "breakdown": [{"spec": s, "count": 1} for s in spec_list]
-                })
-
-            commit_data: Dict[str, Any] = {
-                "sha": sha,
-                "current_commit_sha": sha,
-                "ts": ts,
-                "counts": {"locations": num_current_int},
-                "violations": violations,
-                "num_current_violations": num_current_int,
-                "num_new_violations": 0,
-                "num_old_violations": 0,
-            }
-
-            # Optional extra fields
-            if coverage and str(coverage).strip() and str(coverage).strip().lower() != "nan":
-                try:
-                    coverage_val = float(coverage)
-                    commit_data["coverage"] = coverage_val
-                except (ValueError, TypeError):
-                    commit_data["coverage"] = str(coverage).strip()
-
-            if commit_msg and str(commit_msg).strip() and str(commit_msg).strip().lower() != "nan":
-                commit_data["current_commit_message"] = str(commit_msg).strip()
-
-            if commit_ts and str(commit_ts).strip() and str(commit_ts).strip().lower() != "nan":
-                commit_ts_epoch = to_epoch(commit_ts)
-                if commit_ts_epoch:
-                    commit_data["current_commit_timestamp"] = commit_ts_epoch
-
-            proj["commits"].append(commit_data)
-            total_commits += 1
-
-            # Unique violations for this project (just from the latest commit)
-            total_locations += num_current_int
-
-        except Exception as e:
-            print(f"ERROR: Failed to process survey CSV for {repo_name}: {e}")
-
-        projects_out.append(proj)
-
-    totals = {"commits": total_commits, "locations": total_locations}
-    # For survey we don't compute after-first deltas; keep totals minimal.
-    return {"projects": projects_out, "totals": totals}
+    return base
 
 
 def build_dataset_pr() -> dict:
