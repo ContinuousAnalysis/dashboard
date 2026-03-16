@@ -326,7 +326,7 @@
           infoCard.append(el("div", {}, "No commit data"));
         } else {
           const ts = c.current_commit_timestamp || 0;
-          const violations = c.violations || [];
+          const violations = c.all_violations || c.violations || [];
 
           const numCurrent = (c.counts && typeof c.counts.locations === "number")
             ? c.counts.locations
@@ -358,10 +358,10 @@
         }
 
         tbody.innerHTML = "";
-        if (!c || !Array.isArray(c.violations)) return;
+        if (!c || !Array.isArray(violations)) return;
 
         const q = (input.value || "").toLowerCase();
-        (c.violations || [])
+        violations
           .filter(v =>
             (v.file || "").toLowerCase().includes(q) ||
             String(v.line).includes(q) ||

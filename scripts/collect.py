@@ -643,7 +643,8 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
                             "num_new_violations": 0,
                             "num_old_violations": 0,
                             "num_python_file_changed": None,
-                            "github_url": None
+                            "github_url": None,
+                            "current_violations_raw": ""
                         }
                     if ts and (commits_map[sha]["ts"] or 0) < ts:
                         commits_map[sha]["ts"] = ts
@@ -654,6 +655,9 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
                     commits_map[sha]["num_current_violations"] = num_current_int
                     commits_map[sha]["num_new_violations"] = num_new_int
                     commits_map[sha]["num_old_violations"] = num_old_int
+
+                    # Store raw current_violations string for downstream consumers (e.g. survey)
+                    commits_map[sha]["current_violations_raw"] = current_v
 
                     # Store coverage if present
                     if coverage and str(coverage).strip() and str(coverage).strip().lower() != "nan":
@@ -750,6 +754,10 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
                     # Add end-to-end times if available (for history runs)
                     if obj.get("end_to_end_times") is not None:
                         commit_data["end_to_end_times"] = obj["end_to_end_times"]
+
+                    # Preserve raw current_violations string for survey processing
+                    if obj.get("current_violations_raw") is not None:
+                        commit_data["current_violations_raw"] = obj["current_violations_raw"]
                     
                     proj["commits"].append(commit_data)
 
@@ -861,6 +869,37 @@ def build_survey_dataset() -> dict:
             if name in survey_map:
                 proj["full_name"] = name
                 proj["url"] = survey_map[name]
+
+    # For the survey *project* page, we want to show all violations from
+    # current_violations for the latest commit, while history views keep
+    # using the filtered new_violations-based list. To support this,
+    # build an additional per-commit list all_violations from the stored
+    # current_violations_raw string.
+    for proj in base.get("projects", []):
+        for c in proj.get("commits", []):
+            raw = c.get("current_violations_raw", "")
+            if not raw:
+                continue
+            locs = parse_vloc_cell_with_occurrence(raw)
+            if not locs:
+                continue
+            by_loc: Dict[Tuple[str, int], dict] = {}
+            for v in locs:
+                key = (v["file"], v["line"])
+                rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
+                rec["specs"].add(v["spec"])
+            all_violations = []
+            for (f, ln), rec in sorted(by_loc.items(), key=lambda t: (t[0][0], t[0][1])):
+                spec_list = sorted(rec["specs"])
+                all_violations.append({
+                    "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
+                    "file": f,
+                    "line": int(ln),
+                    "count": len(spec_list),
+                    "specs": ";".join(spec_list),
+                    "breakdown": [{"spec": s, "count": 1} for s in spec_list]
+                })
+            c["all_violations"] = all_violations
 
     return base
 
