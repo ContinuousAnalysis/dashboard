@@ -381,6 +381,7 @@
           el("th", {}, "Line"),
           el("th", {}, "Source URL"),
           el("th", {}, "Specification"),
+          el("th", {}, "Triggering test"),
           el("th", {}, "Total Occurrences")
         )),
         el("tbody")
@@ -462,9 +463,9 @@
           ));
           addRow("Timestamp (ET)", el("div", {}, ts ? fmtET(ts) : "—"));
           addRow("Files Changed", el("div", {}, numFiles));
-          addRow("Original Time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
-          addRow("PyMOP Time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
-          addRow("Dylin Time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
+          addRow("Original end-to-end test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
+          addRow("PyMOP end-to-end test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
+          addRow("Dylin end-to-end test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
           addRow("Unique Violations", el("div", {},
             el("span", {style:"color:#6b7280;"}, String(numCurrent))
           ));
@@ -492,7 +493,7 @@
         const appendSection = (label, items) => {
           if (!items.length) return;
           tbody.append(el("tr", {},
-            el("td", {colspan:"5", style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
+            el("td", {colspan:"6", style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
           ));
           items.forEach(v => {
             const cls = classifyViolation(v);
@@ -509,6 +510,7 @@
                 : el("span", {class:"muted"}, "N/A")
               ),
               el("td", {}, renderSpecLinks(v.specs)),
+              el("td", {class:"muted"}, "to be added..."),
               el("td", {}, String(v.count || 0))
             ));
           });
@@ -890,7 +892,14 @@
       const p = findProject(ds, slug);
       if (!p) return app.append(el("div", {}, "Project not found"));
       const isHistoryLike = (kind === "hist" || kind === "survey");
-      app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
+      if (kind === "survey") {
+        app.append(breadcrumb([
+          {href:"#/survey", text:"Survey"},
+          {href:`#/survey/p/${p.slug}/hist`, text:p.full_name}
+        ]));
+      } else {
+        app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
+      }
 
       // Controls: time range (UTC) + text filter
       const controls = el("div", {class:"controls"});
@@ -1488,9 +1497,9 @@
           app.append(row);
         }
 
-      // Check if any commits have coverage data
+      // Check if any commits have coverage data (hide coverage for survey history)
       const commits = (p.commits||[]).slice().reverse();
-      const hasCoverage = commits.some(c => c.coverage !== undefined && c.coverage !== null);
+      const hasCoverage = kind !== "survey" && commits.some(c => c.coverage !== undefined && c.coverage !== null);
 
       // Table header
       const tableHeaders = [
@@ -1697,13 +1706,13 @@
           const pymopTime = parseTime(c.end_to_end_times.pymop);
           const dylinTime = parseTime(c.end_to_end_times.dylin);
 
-          addRow("Original Time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
-          addRow("PyMOP Time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
-          addRow("Dylin Time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
+          addRow("Original end-to-end test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
+          addRow("PyMOP end-to-end test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
+          addRow("Dylin end-to-end test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
         } else {
-          addRow("Original Time", el("div", {}, "x"));
-          addRow("PyMOP Time", el("div", {}, "x"));
-          addRow("Dylin Time", el("div", {}, "x"));
+          addRow("Original end-to-end test time", el("div", {}, "x"));
+          addRow("PyMOP end-to-end test time", el("div", {}, "x"));
+          addRow("Dylin end-to-end test time", el("div", {}, "x"));
         }
       }
       
@@ -1757,8 +1766,8 @@
       }
       addRow("Unique Violations", el("div", {}, ...violationParts));
       
-      // Add coverage if available
-      if (c.coverage !== undefined && c.coverage !== null) {
+      // Add coverage if available (hide on survey pages)
+      if (kind !== "survey" && c.coverage !== undefined && c.coverage !== null) {
         const coverageDisplay = typeof c.coverage === "number" ? `${c.coverage.toFixed(2)}%` : String(c.coverage);
         addRow("Coverage", el("div", {}, coverageDisplay));
       }
@@ -1809,7 +1818,8 @@
           el("th", {}, "Line"),
           el("th", {}, "Source URL"),
           el("th", {}, "Type"),
-          el("th", {}, "Specs"),
+          el("th", {}, "Specification"),
+          el("th", {}, "Triggering test"),
           el("th", {}, "Total Occurrences")
         )),
         el("tbody")
@@ -1840,7 +1850,7 @@
         const appendSection = (label, items) => {
           if (!items.length) return;
           tbody.append(el("tr", {},
-            el("td", {colspan:"6", style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
+            el("td", {colspan:"7", style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
           ));
           items
             .slice()
@@ -1867,6 +1877,7 @@
                 ),
                 el("td", {}, typeLabel),
                 el("td", {}, renderSpecLinks(v.specs)),
+                el("td", {class:"muted"}, "to be added..."),
                 el("td", {}, String(v.count || 0))
               ));
             });
@@ -1903,7 +1914,7 @@
       ];
       
       // Add coverage if available for this commit
-      if (c.coverage !== undefined && c.coverage !== null) {
+      if (kind !== "survey" && c.coverage !== undefined && c.coverage !== null) {
         const coverageDisplay = typeof c.coverage === "number" ? `${c.coverage.toFixed(2)}%` : String(c.coverage);
         violationInfo.push(el("div", {}, el("strong", {}, "Coverage: "), coverageDisplay));
       }
