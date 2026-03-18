@@ -248,6 +248,21 @@
       return { isCut, isLib, isPy };
     }
 
+    const SPECS_BASE_URL = "https://github.com/SoftEngResearch/pymop/tree/main/specs-new";
+
+    function renderSpecLinks(specs) {
+      const s = String(specs || "").trim();
+      if (!s) return el("span", {class:"muted"}, "—");
+      const parts = s.split(";").map(x => x.trim()).filter(Boolean);
+      const wrap = el("span", {});
+      parts.forEach((name, i) => {
+        if (i > 0) wrap.append("; ");
+        const specUrl = `${SPECS_BASE_URL}/${encodeURIComponent(name)}.py`;
+        wrap.append(el("a", {href: specUrl, target:"_blank", class:"nowrap", title: specUrl}, name));
+      });
+      return wrap;
+    }
+
     // --------- Views ---------
     function renderSurveyHistory(app, slug) {
       // Reuse the history view layout, but backed by the survey dataset.
@@ -412,22 +427,49 @@
             commitUrl = `${base}/commit/${sha}`;
           }
 
-          infoCard.append(
-            el("div", {}, el("strong", {}, "Commit: "), sha ? el("code", {}, sha) : "—"),
-            el("div", {}, el("strong", {}, "Commit URL: "),
-              commitUrl
-                ? el("a", {
-                    href: commitUrl,
-                    target: "_blank",
-                    style: "color:#2563eb; word-break:break-all;"
-                  }, commitUrl)
-                : el("span", {class:"muted"}, "—")
-            ),
-            el("div", {}, el("strong", {}, "Timestamp: "), ts ? fmtET(ts) : "—"),
-            el("div", {}, el("strong", {}, "Unique Violations: "),
-              el("span", {style:"color:#6b7280;"}, String(numCurrent))
-            )
-          );
+          const metaGrid = el("div", {
+            style: "display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; align-items:baseline;"
+          });
+          const addRow = (label, valueNodeOrText) => {
+            metaGrid.append(
+              el("div", {class:"muted", style:"font-weight:600;"}, label),
+              valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
+            );
+          };
+
+          const commitMessage = c.current_commit_message || "x";
+          const numFiles = (c.num_python_file_changed !== undefined && c.num_python_file_changed !== null)
+            ? String(c.num_python_file_changed)
+            : "—";
+
+          const parseTime = (val) => {
+            if (!val || val === "x" || val === "" || val === "nan" || val === null || val === undefined) {
+              return -5.0;
+            }
+            const num = parseFloat(val);
+            return isNaN(num) ? -5.0 : num;
+          };
+
+          const origTime = c.end_to_end_times ? parseTime(c.end_to_end_times.original) : -5.0;
+          const pymopTime = c.end_to_end_times ? parseTime(c.end_to_end_times.pymop) : -5.0;
+          const dylinTime = c.end_to_end_times ? parseTime(c.end_to_end_times.dylin) : -5.0;
+
+          addRow("Commit", el("div", {}, sha ? el("code", {}, sha) : "—"));
+          addRow("Commit Message", el("div", {}, commitMessage));
+          addRow("Commit URL", el("div", {}, commitUrl
+            ? el("a", {href: commitUrl, target: "_blank", title: commitUrl, style:"color:#2563eb; word-break:break-all;"}, "Open on GitHub")
+            : el("span", {class:"muted"}, "—")
+          ));
+          addRow("Timestamp (ET)", el("div", {}, ts ? fmtET(ts) : "—"));
+          addRow("Files Changed", el("div", {}, numFiles));
+          addRow("Original Time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
+          addRow("PyMOP Time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
+          addRow("Dylin Time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
+          addRow("Unique Violations", el("div", {},
+            el("span", {style:"color:#6b7280;"}, String(numCurrent))
+          ));
+
+          infoCard.append(metaGrid);
         }
 
         tbody.innerHTML = "";
@@ -466,7 +508,7 @@
                 ? el("a", {href: sourceUrl, target: "_blank", class:"nowrap"}, "Open")
                 : el("span", {class:"muted"}, "N/A")
               ),
-              el("td", {}, v.specs || "—"),
+              el("td", {}, renderSpecLinks(v.specs)),
               el("td", {}, String(v.count || 0))
             ));
           });
@@ -1625,7 +1667,7 @@
       if (kind === "hist") {
         // Add GitHub URL
         if (c.github_url && c.github_url.trim()) {
-          addRow("GitHub", el("div", {},
+          addRow("Commit URL", el("div", {},
             el("a", {
               href: c.github_url,
               target: "_blank",
@@ -1824,7 +1866,7 @@
                   : el("span", {class:"muted"}, "N/A")
                 ),
                 el("td", {}, typeLabel),
-                el("td", {}, v.specs || "—"),
+                el("td", {}, renderSpecLinks(v.specs)),
                 el("td", {}, String(v.count || 0))
               ));
             });
