@@ -243,7 +243,7 @@
     function classifyViolation(v) {
       const p = (v.file || "").toLowerCase();
       const isLib = p.includes("site-packages");
-      const isPy = p.includes("python3.12") || p.includes("pythonmop");
+      const isPy = (p.includes("python3.12") && !isLib) || p.includes("pythonmop");
       const isCut = !isLib && !isPy;
       return { isCut, isLib, isPy };
     }
@@ -847,6 +847,7 @@
     function renderProject(app, ds, kind, slug){
       const p = findProject(ds, slug);
       if (!p) return app.append(el("div", {}, "Project not found"));
+      const isHistoryLike = (kind === "hist" || kind === "survey");
       app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
 
       // Controls: time range (UTC) + text filter
@@ -912,7 +913,7 @@
       // Stats calculation (always calculate, regardless of valuesAll.length)
       let statsTitle, statsItems;
       
-      if (kind === "hist") {
+      if (isHistoryLike) {
           // For history runs: show total commits and violations across all time
           const totalCommits = allCommits.length;
           
@@ -1062,7 +1063,7 @@
           const pymopTimes = [];
           const dylinTimes = [];
           
-          if (kind === "hist") {
+          if (isHistoryLike) {
             allCommits.forEach(cc => {
               const sha = cc.current_commit_sha || cc.sha;
               if (sha && cc.end_to_end_times) {
@@ -1077,7 +1078,7 @@
             });
           }
           
-          const hasTimeData = kind === "hist" && originalTimes.some(t => t > -5);
+          const hasTimeData = isHistoryLike && originalTimes.some(t => t > -5);
           
             // Function to create plot based on type
           const createPlot = (plotType, origTimes, pymopTimes, dylinTimes, hasTime) => {
@@ -1457,7 +1458,7 @@
       ];
       
       // Add Files Changed column for history runs
-      if (kind === "hist") {
+      if (isHistoryLike) {
         tableHeaders.push(el("th", {}, "Files Changed"));
         tableHeaders.push(el("th", {}, "Monitoring Time"));
       }
@@ -1713,6 +1714,39 @@
       app.append(el("div", {class:"card"}, ...commitInfo));
       // ---------------------------------------------------------
       // --- SAFER TABLE (avoid crashes if violations is missing) ---
+      const typeState = { cut: true, lib: true, py: true };
+      const typeRow = el("div", {class:"controls", style:"margin:8px 0; gap:12px; align-items:center;"},
+        el("span", {class:"muted"}, "Show: ")
+      );
+      const mkType = (key, label) => {
+        const cb = el("input", {type:"checkbox"});
+        cb.checked = !!typeState[key];
+        const labelSpan = el("span", {}, label);
+        cb.addEventListener("change", () => {
+          typeState[key] = cb.checked;
+          draw();
+        });
+        return { cb, labelSpan, node: el("label", {style:"display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;"},
+          cb,
+          labelSpan
+        )};
+      };
+      // Prefer showing the full current_violations-derived list when available (survey),
+      // otherwise fall back to the existing violations list (history/monitoring).
+      const baseViolations = c.all_violations || c.violations || [];
+      let cutTotal = 0, libTotal = 0, pyTotal = 0;
+      baseViolations.forEach(v => {
+        const cls = classifyViolation(v);
+        if (cls.isCut) cutTotal += 1;
+        if (cls.isLib) libTotal += 1;
+        if (cls.isPy) pyTotal += 1;
+      });
+      const cutT = mkType("cut", `CUT (${cutTotal})`);
+      const libT = mkType("lib", `Library (${libTotal})`);
+      const pyT = mkType("py", `Python (${pyTotal})`);
+      typeRow.append(cutT.node, libT.node, pyT.node);
+      app.append(typeRow);
+
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
       app.append(input);
 
@@ -1721,6 +1755,7 @@
         el("thead", {}, el("tr", {},
           el("th", {}, "File"),
           el("th", {}, "Line"),
+          el("th", {}, "Type"),
           el("th", {}, "Specs"),
           el("th", {}, "Total Occurrences"),
           el("th", {}, "Details")
@@ -1732,16 +1767,23 @@
       function draw(){
         tbody.innerHTML = "";
         const q = (input.value||"").toLowerCase();
-        (c.violations || [])
+        (baseViolations || [])
+          .filter(v => {
+            const cls = classifyViolation(v);
+            return (typeState.cut && cls.isCut) || (typeState.lib && cls.isLib) || (typeState.py && cls.isPy);
+          })
           .filter(v =>
             v.file.toLowerCase().includes(q) ||
             String(v.line).includes(q) ||
             (v.specs||"").toLowerCase().includes(q)
           )
           .forEach(v => {
+            const cls = classifyViolation(v);
+            const typeLabel = cls.isCut ? "CUT" : cls.isLib ? "Library" : "Python";
             tbody.append(el("tr", {},
               el("td", {class:"nowrap"}, v.file),
               el("td", {}, String(v.line)),
+              el("td", {}, typeLabel),
               el("td", {}, v.specs || "—"),
               el("td", {}, String(v.count || 0)),
               el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open"))
