@@ -218,6 +218,18 @@
       return { isCut, isDep, isPy };
     }
 
+    // Classify a (survey/commit) violation into CUT / library / Python buckets
+    // CUT: project files (default)
+    // library: path contains "site-packages"
+    // Python: path contains "python3.12" or "pythonmop"
+    function classifyViolation(v) {
+      const p = (v.file || "").toLowerCase();
+      const isLib = p.includes("site-packages");
+      const isPy = p.includes("python3.12") || p.includes("pythonmop");
+      const isCut = !isLib && !isPy;
+      return { isCut, isLib, isPy };
+    }
+
     // --------- Views ---------
     function renderSurveyHistory(app, slug) {
       // Reuse the history view layout, but backed by the survey dataset
@@ -298,6 +310,30 @@
       }, null);
       const latestSha = latest ? (latest.current_commit_sha || latest.sha || "") : "";
 
+      // Violation type filters (multi-select)
+      const filterState = { cut: true, lib: true, py: true };
+      const filterRow = el("div", {class:"controls", style:"margin:8px 0; gap:12px; align-items:center;"},
+        el("span", {class:"muted"}, "Show: ")
+      );
+      const mkCheck = (key, label) => {
+        const cb = el("input", {type:"checkbox"});
+        cb.checked = !!filterState[key];
+        const labelSpan = el("span", {}, label);
+        cb.addEventListener("change", () => {
+          filterState[key] = cb.checked;
+          draw();
+        });
+        return { cb, labelSpan, node: el("label", {style:"display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;"},
+          cb,
+          labelSpan
+        )};
+      };
+      const cutToggle = mkCheck("cut", "CUT");
+      const libToggle = mkCheck("lib", "Library");
+      const pyToggle = mkCheck("py", "Python");
+      filterRow.append(cutToggle.node, libToggle.node, pyToggle.node);
+      app.append(filterRow);
+
       const infoCard = el("div", {class:"card"});
       app.append(infoCard);
 
@@ -327,11 +363,27 @@
           infoCard.append(el("div", {}, "No commit data"));
         } else {
           const ts = c.current_commit_timestamp || 0;
-          violations = c.all_violations || c.violations || [];
+          const allViolations = c.all_violations || c.violations || [];
 
-          const numCurrent = (c.counts && typeof c.counts.locations === "number")
-            ? c.counts.locations
-            : (c.num_current_violations ?? violations.length ?? 0);
+          // Compute counts per type (shown on toggles)
+          let cutCount = 0, libCount = 0, pyCount = 0;
+          allViolations.forEach(v => {
+            const cls = classifyViolation(v);
+            if (cls.isCut) cutCount += 1;
+            if (cls.isLib) libCount += 1;
+            if (cls.isPy) pyCount += 1;
+          });
+          cutToggle.labelSpan.textContent = `CUT (${cutCount})`;
+          libToggle.labelSpan.textContent = `Library (${libCount})`;
+          pyToggle.labelSpan.textContent = `Python (${pyCount})`;
+
+          // Apply type filters
+          violations = allViolations.filter(v => {
+            const cls = classifyViolation(v);
+            return (filterState.cut && cls.isCut) || (filterState.lib && cls.isLib) || (filterState.py && cls.isPy);
+          });
+
+          const numCurrent = violations.length;
 
           // Build commit URL directly from the project URL + "/commit/" + SHA
           let commitUrl = null;
