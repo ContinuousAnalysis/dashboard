@@ -163,12 +163,30 @@
       if (kind === "survey" && tail[0] === "p" && tail[1] && tail[2] === "hist" && tail.length === 3) {
         return renderSurveyHistory(app, tail[1]);
       }
+      if (kind === "survey" && tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail.length === 4) {
+        return renderCommit(app, {projects: getSurveyProjects()}, "hist", tail[1], tail[3]);
+      }
+      if (kind === "survey" && tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail[4] === "v" && tail[5]) {
+        return renderViolation(app, {projects: getSurveyProjects()}, "hist", tail[1], tail[3], tail[5]);
+      }
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail[4] === "v" && tail[5]) return renderPrViolation(app, ds, tail[1], tail[3], tail[5]);
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail.length === 4) return renderPrDetail(app, ds, tail[1], tail[3]);
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail.length === 2) return renderPrProject(app, ds, tail[1]);
       if (tail[0] === "p" && tail[1] && tail.length === 2) return renderProject(app, ds, kind, tail[1]);
-      if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail.length === 4) return renderCommit(app, ds, kind, tail[1], tail[3]);
-      if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail[4] === "v" && tail[5]) return renderViolation(app, ds, kind, tail[1], tail[3], tail[5]);
+      if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail.length === 4) {
+        // If a commit link came from Survey history, it uses the /hist route,
+        // but the data lives under the survey dataset. Fall back gracefully.
+        if (kind === "hist" && (!ds || !findProject(ds, tail[1])) && findSurveyProject(tail[1])) {
+          return renderCommit(app, {projects: getSurveyProjects()}, "hist", tail[1], tail[3]);
+        }
+        return renderCommit(app, ds, kind, tail[1], tail[3]);
+      }
+      if (tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail[4] === "v" && tail[5]) {
+        if (kind === "hist" && (!ds || !findProject(ds, tail[1])) && findSurveyProject(tail[1])) {
+          return renderViolation(app, {projects: getSurveyProjects()}, "hist", tail[1], tail[3], tail[5]);
+        }
+        return renderViolation(app, ds, kind, tail[1], tail[3], tail[5]);
+      }
 
       app.append(el("div", {}, "Not found"));
     }
@@ -232,9 +250,10 @@
 
     // --------- Views ---------
     function renderSurveyHistory(app, slug) {
-      // Reuse the history view layout, but backed by the survey dataset
+      // Reuse the history view layout, but backed by the survey dataset.
+      // IMPORTANT: Use kind="survey" so commit links stay within /survey routes.
       const ds = {projects: getSurveyProjects()};
-      return renderProject(app, ds, "hist", slug);
+      return renderProject(app, ds, "survey", slug);
     }
     function renderSurveyHome(app) {
       // Only show survey projects that actually have data (at least one commit)
@@ -346,7 +365,7 @@
           el("th", {}, "File"),
           el("th", {}, "Line"),
           el("th", {}, "Source URL"),
-          el("th", {}, "Specs"),
+          el("th", {}, "Specification"),
           el("th", {}, "Total Occurrences")
         )),
         el("tbody")

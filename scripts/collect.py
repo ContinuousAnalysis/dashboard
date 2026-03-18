@@ -690,7 +690,8 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
                         commits_map[sha]["github_url"] = str(github_url_val).strip()
                 
                 # Load time data from cumulative results (only for history runs)
-                times_by_commit = load_cumulative_times(full)
+                # Use the configured cumulative_dir (survey uses survey_cumulative_results).
+                times_by_commit = load_cumulative_times(full, base_dir=cumulative_dir)
                 
                 # Add time data to commits_map
                 for sha in commits_map:
