@@ -1604,30 +1604,42 @@
       const numNew = c.num_new_violations ?? 0;
       const numOld = c.num_old_violations ?? 0;
 
-      const commitInfo = [
-        el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha))
-      ];
-      
-      // Add commit message - always show, even if missing
       const commitMessage = c.current_commit_message || "x";
-      commitInfo.push(el("div", {}, el("strong", {}, "Commit Message: "), commitMessage));
-      
-      // Add commit timestamp - always show, even if missing
       const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
-      commitInfo.push(el("div", {}, el("strong", {}, "Timestamp: "), displayTimestamp));
+
+      const metaGrid = el("div", {
+        style: "display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; align-items:baseline;"
+      });
+      const addRow = (label, valueNodeOrText) => {
+        metaGrid.append(
+          el("div", {class:"muted", style:"font-weight:600;"}, label),
+          valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
+        );
+      };
+
+      addRow("Commit", el("div", {}, el("code", {}, sha)));
+      addRow("Commit Message", el("div", {}, commitMessage));
+      addRow("Timestamp (ET)", el("div", {}, displayTimestamp));
       
       // Add GitHub URL and Files Changed for history runs
       if (kind === "hist") {
         // Add GitHub URL
         if (c.github_url && c.github_url.trim()) {
-          commitInfo.push(el("div", {}, el("strong", {}, "GitHub URL: "), el("a", {href: c.github_url, target: "_blank"}, c.github_url)));
+          addRow("GitHub", el("div", {},
+            el("a", {
+              href: c.github_url,
+              target: "_blank",
+              title: c.github_url,
+              style: "color:#2563eb; word-break:break-all;"
+            }, "Open on GitHub")
+          ));
         }
         
         // Add Files Changed
         const numFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
           ? String(c.num_python_file_changed) 
           : "—";
-        commitInfo.push(el("div", {}, el("strong", {}, "Files Changed: "), numFiles));
+        addRow("Files Changed", el("div", {}, numFiles));
         
         // Add End-to-end times
         const parseTime = (val) => {
@@ -1642,23 +1654,14 @@
           const origTime = parseTime(c.end_to_end_times.original);
           const pymopTime = parseTime(c.end_to_end_times.pymop);
           const dylinTime = parseTime(c.end_to_end_times.dylin);
-          
-          commitInfo.push(el("div", {}, 
-            el("strong", {}, "Original End-to-end time: "), 
-            origTime > -5 ? origTime.toFixed(2) + "s" : "x"
-          ));
-          commitInfo.push(el("div", {}, 
-            el("strong", {}, "PyMOP End-to-end time: "), 
-            pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"
-          ));
-          commitInfo.push(el("div", {}, 
-            el("strong", {}, "Dylin End-to-end time: "), 
-            dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"
-          ));
+
+          addRow("Original Time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
+          addRow("PyMOP Time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
+          addRow("Dylin Time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
         } else {
-          commitInfo.push(el("div", {}, el("strong", {}, "Original End-to-end time: "), "x"));
-          commitInfo.push(el("div", {}, el("strong", {}, "PyMOP End-to-end time: "), "x"));
-          commitInfo.push(el("div", {}, el("strong", {}, "Dylin End-to-end time: "), "x"));
+          addRow("Original Time", el("div", {}, "x"));
+          addRow("PyMOP Time", el("div", {}, "x"));
+          addRow("Dylin Time", el("div", {}, "x"));
         }
       }
       
@@ -1686,7 +1689,14 @@
             } else {
               githubUrl = `https://github.com/${repoPath}/commit/${currentSha}`;
             }
-            commitInfo.push(el("div", {}, el("strong", {}, "GitHub URL: "), el("a", {href: githubUrl, target: "_blank"}, githubUrl)));
+            addRow("GitHub", el("div", {},
+              el("a", {
+                href: githubUrl,
+                target: "_blank",
+                title: githubUrl,
+                style: "color:#2563eb; word-break:break-all;"
+              }, "Open on GitHub")
+            ));
           }
         }
       }
@@ -1703,15 +1713,15 @@
       } else if (numNew === 0 && numOld === 0) {
         violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
       }
-      commitInfo.push(el("div", {}, el("strong", {}, "Unique Violations: "), ...violationParts));
+      addRow("Unique Violations", el("div", {}, ...violationParts));
       
       // Add coverage if available
       if (c.coverage !== undefined && c.coverage !== null) {
         const coverageDisplay = typeof c.coverage === "number" ? `${c.coverage.toFixed(2)}%` : String(c.coverage);
-        commitInfo.push(el("div", {}, el("strong", {}, "Coverage: "), coverageDisplay));
+        addRow("Coverage", el("div", {}, coverageDisplay));
       }
       
-      app.append(el("div", {class:"card"}, ...commitInfo));
+      app.append(el("div", {class:"card"}, metaGrid));
       // ---------------------------------------------------------
       // --- SAFER TABLE (avoid crashes if violations is missing) ---
       const typeState = { cut: true, lib: true, py: true };
