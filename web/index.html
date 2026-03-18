@@ -277,11 +277,35 @@
       return wrap;
     }
 
+    function appendSurveyProjectMetadata(app, p) {
+      if (!p) return;
+      const urlBoxContent = [
+        el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
+      ];
+      urlBoxContent.push(
+        el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
+          el("span", {}, "Project: "),
+          el("span", {}, p.full_name || p.slug || "Project")
+        )
+      );
+      urlBoxContent.push(
+        el("div", {style:"display:flex; align-items:center; gap:8px;"},
+          el("span", {}, "Project URL: "),
+          p.url
+            ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
+            : el("span", {class:"muted"}, "—")
+        )
+      );
+      app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
+    }
+
     // --------- Views ---------
     function renderSurveyHistory(app, slug) {
       // Reuse the history view layout, but backed by the survey dataset.
       // IMPORTANT: Use kind="survey" so commit links stay within /survey routes.
       const ds = {projects: getSurveyProjects()};
+      const p = findProject(ds, slug);
+      if (p) appendSurveyProjectMetadata(app, p);
       return renderProject(app, ds, "survey", slug);
     }
     function renderSurveyHome(app) {
@@ -317,35 +341,25 @@
       const historyBtnRow = el("div", {style:"display:flex; justify-content:flex-end; margin:8px 0;"},
         el("a", {
           href: `#/survey/p/${p.slug}/hist`,
-          class: "pill",
-          style: "cursor:pointer;"
-        }, "See earlier commits →")
+          style: [
+            "display:inline-flex",
+            "align-items:center",
+            "gap:8px",
+            "padding:8px 12px",
+            "border-radius:999px",
+            "border:1px solid var(--active)",
+            "background:var(--active)",
+            "color:white",
+            "font-weight:700",
+            "text-decoration:none",
+            "box-shadow:0 1px 2px rgba(0,0,0,0.08)",
+            "cursor:pointer"
+          ].join(";")
+        }, "See earlier commits →", el("span", {style:"font-weight:800;"}, "→"))
       );
       app.append(historyBtnRow);
 
-      // Project Metadata (same style as other tabs)
-      const urlBoxContent = [
-        el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
-      ];
-      urlBoxContent.push(
-        el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
-          el("span", {}, "Project: "),
-          el("span", {}, p.full_name || p.slug || "Project")
-        )
-      );
-      urlBoxContent.push(
-        el("div", {style:"display:flex; align-items:center; gap:8px;"},
-          el("span", {}, "Project URL: "),
-          p.url
-            ? el("a", {
-                href: p.url,
-                target: "_blank",
-                style: "color:#2563eb; word-break:break-all;"
-              }, p.url)
-            : el("span", {class:"muted"}, "—")
-        )
-      );
-      app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
+      appendSurveyProjectMetadata(app, p);
 
       // Survey: show the latest commit based on current_commit_timestamp.
       // We still keep all commits in the dataset for the history view.
@@ -909,6 +923,8 @@
       // Survey participant view: no breadcrumbs inside a project
       if (kind !== "survey") {
         app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
+      } else {
+        appendSurveyProjectMetadata(app, p);
       }
 
       // Controls: time range (UTC) + text filter
@@ -1661,6 +1677,8 @@
           {href:`#/${kind}/p/${p.slug}`, text:p.full_name},
           {text: sha}
         ]));
+      } else {
+        appendSurveyProjectMetadata(app, p);
       }
 
       // --- SAFER HEADER (avoid crashes if counts is missing) ---
@@ -1920,6 +1938,8 @@
           {href:`#/${kind}/p/${p.slug}/c/${sha}`, text: sha},
           {text: v.id}
         ]));
+      } else {
+        appendSurveyProjectMetadata(app, p);
       }
 
       const violationInfo = [
