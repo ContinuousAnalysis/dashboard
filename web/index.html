@@ -304,8 +304,6 @@
       // Reuse the history view layout, but backed by the survey dataset.
       // IMPORTANT: Use kind="survey" so commit links stay within /survey routes.
       const ds = {projects: getSurveyProjects()};
-      const p = findProject(ds, slug);
-      if (p) appendSurveyProjectMetadata(app, p);
       return renderProject(app, ds, "survey", slug);
     }
     function renderSurveyHome(app) {
@@ -355,7 +353,7 @@
             "box-shadow:0 1px 2px rgba(0,0,0,0.08)",
             "cursor:pointer"
           ].join(";")
-        }, "See earlier commits →", el("span", {style:"font-weight:800;"}, "→"))
+        }, "See earlier commits", el("span", {style:"font-weight:800;"}, "→"))
       );
       app.append(historyBtnRow);
 
