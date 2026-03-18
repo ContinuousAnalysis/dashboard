@@ -443,7 +443,7 @@
         const sections = [
           { key: "cut", label: "CUT", match: (v) => classifyViolation(v).isCut },
           { key: "lib", label: "Library", match: (v) => classifyViolation(v).isLib },
-          { key: "py", label: "Python source", match: (v) => classifyViolation(v).isPy },
+          { key: "py", label: "Python/PyMOP source", match: (v) => classifyViolation(v).isPy },
         ];
 
         const baseRepoUrl = p.url ? p.url.replace(/\.git$/i, "").replace(/\/+$/, "") : null;
@@ -1527,8 +1527,8 @@
               el("td", {style:"min-width:140px;"}, displayTimestamp)
             ];
             
-            // Add Files Changed and Monitoring Time columns for history runs
-            if (kind === "hist") {
+            // Add Files Changed and Monitoring Time columns for history-like runs
+            if (isHistoryLike) {
               const numFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
                 ? String(c.num_python_file_changed) 
                 : "—";
@@ -1755,10 +1755,10 @@
         el("thead", {}, el("tr", {},
           el("th", {}, "File"),
           el("th", {}, "Line"),
+          el("th", {}, "Source URL"),
           el("th", {}, "Type"),
           el("th", {}, "Specs"),
-          el("th", {}, "Total Occurrences"),
-          el("th", {}, "Details")
+          el("th", {}, "Total Occurrences")
         )),
         el("tbody")
       );
@@ -1767,7 +1767,7 @@
       function draw(){
         tbody.innerHTML = "";
         const q = (input.value||"").toLowerCase();
-        (baseViolations || [])
+        const filtered = (baseViolations || [])
           .filter(v => {
             const cls = classifyViolation(v);
             return (typeState.cut && cls.isCut) || (typeState.lib && cls.isLib) || (typeState.py && cls.isPy);
@@ -1776,19 +1776,51 @@
             v.file.toLowerCase().includes(q) ||
             String(v.line).includes(q) ||
             (v.specs||"").toLowerCase().includes(q)
-          )
-          .forEach(v => {
-            const cls = classifyViolation(v);
-            const typeLabel = cls.isCut ? "CUT" : cls.isLib ? "Library" : "Python";
-            tbody.append(el("tr", {},
-              el("td", {class:"nowrap"}, v.file),
-              el("td", {}, String(v.line)),
-              el("td", {}, typeLabel),
-              el("td", {}, v.specs || "—"),
-              el("td", {}, String(v.count || 0)),
-              el("td", {}, el("a", {href:`#/${kind}/p/${p.slug}/c/${sha}/v/${v.id}`, class:"nowrap"}, "Open"))
-            ));
-          });
+          );
+
+        const sections = [
+          { label: "CUT", match: (v) => classifyViolation(v).isCut },
+          { label: "Library", match: (v) => classifyViolation(v).isLib },
+          { label: "Python/PyMOP source", match: (v) => classifyViolation(v).isPy },
+        ];
+
+        const baseRepoUrl = p.url ? p.url.replace(/\.git$/i, "").replace(/\/+$/, "") : null;
+        const appendSection = (label, items) => {
+          if (!items.length) return;
+          tbody.append(el("tr", {},
+            el("td", {colspan:"6", style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
+          ));
+          items
+            .slice()
+            .sort((a, b) => {
+              const fa = (a.file || "");
+              const fb = (b.file || "");
+              if (fa !== fb) return fa.localeCompare(fb);
+              return (Number(a.line) || 0) - (Number(b.line) || 0);
+            })
+            .forEach(v => {
+              const cls = classifyViolation(v);
+              const typeLabel = cls.isCut ? "CUT" : cls.isLib ? "Library" : "Python";
+              const filePath = String(v.file || "").replace(/^\/+/, "");
+              const lineNum = v.line != null ? Number(v.line) : null;
+              const sourceUrl = (cls.isCut && baseRepoUrl && sha && filePath && lineNum)
+                ? `${baseRepoUrl}/blob/${sha}/${filePath}#L${lineNum}`
+                : null;
+              tbody.append(el("tr", {},
+                el("td", {class:"nowrap"}, v.file),
+                el("td", {}, String(v.line)),
+                el("td", {}, sourceUrl
+                  ? el("a", {href: sourceUrl, target: "_blank", class:"nowrap"}, "Open")
+                  : el("span", {class:"muted"}, "N/A")
+                ),
+                el("td", {}, typeLabel),
+                el("td", {}, v.specs || "—"),
+                el("td", {}, String(v.count || 0))
+              ));
+            });
+        };
+
+        sections.forEach(s => appendSection(s.label, filtered.filter(s.match)));
       }
       input.addEventListener("input", draw);
       draw();
