@@ -345,6 +345,7 @@
         el("thead", {}, el("tr", {},
           el("th", {}, "File"),
           el("th", {}, "Line"),
+          el("th", {}, "Source URL"),
           el("th", {}, "Specs"),
           el("th", {}, "Total Occurrences")
         )),
@@ -414,20 +415,46 @@
         if (!c || !Array.isArray(violations)) return;
 
         const q = (input.value || "").toLowerCase();
-        violations
-          .filter(v =>
-            (v.file || "").toLowerCase().includes(q) ||
-            String(v.line).includes(q) ||
-            (v.specs || "").toLowerCase().includes(q)
-          )
-          .forEach(v => {
+        const qFiltered = violations.filter(v =>
+          (v.file || "").toLowerCase().includes(q) ||
+          String(v.line).includes(q) ||
+          (v.specs || "").toLowerCase().includes(q)
+        );
+
+        const sections = [
+          { key: "cut", label: "CUT", match: (v) => classifyViolation(v).isCut },
+          { key: "lib", label: "Library", match: (v) => classifyViolation(v).isLib },
+          { key: "py", label: "Python source", match: (v) => classifyViolation(v).isPy },
+        ];
+
+        const baseRepoUrl = p.url ? p.url.replace(/\.git$/i, "").replace(/\/+$/, "") : null;
+        const appendSection = (label, items) => {
+          if (!items.length) return;
+          tbody.append(el("tr", {},
+            el("td", {colspan:"5", style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
+          ));
+          items.forEach(v => {
+            const cls = classifyViolation(v);
+            const filePath = String(v.file || "").replace(/^\/+/, "");
+            const lineNum = v.line != null ? Number(v.line) : null;
+            const sourceUrl = (cls.isCut && baseRepoUrl && sha && filePath && lineNum)
+              ? `${baseRepoUrl}/blob/${sha}/${filePath}#L${lineNum}`
+              : null;
             tbody.append(el("tr", {},
               el("td", {class:"nowrap"}, v.file),
               el("td", {}, String(v.line)),
+              el("td", {}, sourceUrl
+                ? el("a", {href: sourceUrl, target: "_blank", class:"nowrap"}, "Open")
+                : el("span", {class:"muted"}, "N/A")
+              ),
               el("td", {}, v.specs || "—"),
               el("td", {}, String(v.count || 0))
             ));
           });
+        };
+
+        // Render in desired order: CUT, Library, Python source code
+        sections.forEach(s => appendSection(s.label, qFiltered.filter(s.match)));
       }
 
       // For survey, there is no commit selector; always show the latest commit.
