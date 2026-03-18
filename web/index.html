@@ -1249,11 +1249,11 @@
               const maxTime = validTimes.length > 0 ? Math.max(...validTimes) : 1;
               const minTime = validTimes.length > 0 ? Math.min(...validTimes) : 0;
               const yMaxTime = maxTime * 1.16;
-              const yMinTime = Math.min(-1, minTime - 1);
+              const yMinTime = -5;
               
               const toYpTime = v => {
-                if (v <= -5) return Mp.t + innerHp * 0.95; // Show -5 near bottom
-                const normalized = (v - yMinTime) / (yMaxTime - yMinTime);
+                const clamped = Math.max(yMinTime, v);
+                const normalized = (clamped - yMinTime) / (yMaxTime - yMinTime);
                 return Mp.t + (innerHp - normalized * innerHp);
               };
               
