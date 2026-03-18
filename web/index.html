@@ -152,6 +152,20 @@
         tabsEl.style.display = hideTabsForSurvey ? "none" : "flex";
       }
 
+      // In survey project/detail pages, make the header title go back to the
+      // survey *project* page (not the internal root survey list), and avoid
+      // jumping to Monitoring.
+      const titleLink = document.querySelector("header h1 a");
+      if (titleLink) {
+        if (kind === "survey" && tail[0] === "p" && tail[1]) {
+          titleLink.setAttribute("href", `#/survey/p/${tail[1]}`);
+        } else if (kind === "survey") {
+          titleLink.setAttribute("href", "#/survey");
+        } else {
+          titleLink.setAttribute("href", "#/now");
+        }
+      }
+
       if (tail.length === 0) {
         if (kind === "pr") return renderPrHome(app, ds);
         if (kind === "survey") return renderSurveyHome(app);
@@ -164,10 +178,10 @@
         return renderSurveyHistory(app, tail[1]);
       }
       if (kind === "survey" && tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail.length === 4) {
-        return renderCommit(app, {projects: getSurveyProjects()}, "hist", tail[1], tail[3]);
+        return renderCommit(app, {projects: getSurveyProjects()}, "survey", tail[1], tail[3]);
       }
       if (kind === "survey" && tail[0] === "p" && tail[1] && tail[2] === "c" && tail[3] && tail[4] === "v" && tail[5]) {
-        return renderViolation(app, {projects: getSurveyProjects()}, "hist", tail[1], tail[3], tail[5]);
+        return renderViolation(app, {projects: getSurveyProjects()}, "survey", tail[1], tail[3], tail[5]);
       }
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail[4] === "v" && tail[5]) return renderPrViolation(app, ds, tail[1], tail[3], tail[5]);
       if (kind === "pr" && tail[0] === "p" && tail[1] && tail[2] === "r" && tail[3] && tail.length === 4) return renderPrDetail(app, ds, tail[1], tail[3]);
@@ -297,7 +311,7 @@
       const p = findSurveyProject(slug);
       if (!p) return app.append(el("div", {}, "Survey project not found"));
 
-      app.append(breadcrumb([{href:"#/survey", text:"Survey"}, {text: p.full_name || p.slug}]));
+      // Survey participant view: no breadcrumbs inside a project
 
       // Top-right button to let participants view earlier commits (optional)
       const historyBtnRow = el("div", {style:"display:flex; justify-content:flex-end; margin:8px 0;"},
@@ -433,7 +447,7 @@
           });
           const addRow = (label, valueNodeOrText) => {
             metaGrid.append(
-              el("div", {class:"muted", style:"font-weight:600;"}, label),
+              el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"}, label),
               valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
             );
           };
@@ -463,9 +477,9 @@
           ));
           addRow("Timestamp (ET)", el("div", {}, ts ? fmtET(ts) : "—"));
           addRow("Files Changed", el("div", {}, numFiles));
-          addRow("Original end-to-end test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
-          addRow("PyMOP end-to-end test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
-          addRow("Dylin end-to-end test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
+          addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
+          addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
+          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
           addRow("Unique Violations", el("div", {},
             el("span", {style:"color:#6b7280;"}, String(numCurrent))
           ));
@@ -892,12 +906,8 @@
       const p = findProject(ds, slug);
       if (!p) return app.append(el("div", {}, "Project not found"));
       const isHistoryLike = (kind === "hist" || kind === "survey");
-      if (kind === "survey") {
-        app.append(breadcrumb([
-          {href:"#/survey", text:"Survey"},
-          {href:`#/survey/p/${p.slug}/hist`, text:p.full_name}
-        ]));
-      } else {
+      // Survey participant view: no breadcrumbs inside a project
+      if (kind !== "survey") {
         app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
       }
 
@@ -1643,11 +1653,15 @@
       const c = findCommit(p, sha);
       if (!c) return app.append(el("div", {}, "Commit not found"));
 
-      app.append(breadcrumb([
-        {href:`#/${kind}`, text:"Home"},
-        {href:`#/${kind}/p/${p.slug}`, text:p.full_name},
-        {text: sha}
-      ]));
+      const isHistoryLike = (kind === "hist" || kind === "survey");
+      // Survey participant view: no breadcrumbs inside a project
+      if (kind !== "survey") {
+        app.append(breadcrumb([
+          {href:`#/${kind}`, text:"Home"},
+          {href:`#/${kind}/p/${p.slug}`, text:p.full_name},
+          {text: sha}
+        ]));
+      }
 
       // --- SAFER HEADER (avoid crashes if counts is missing) ---
       // Use counts.locations (calculated after filtering) instead of num_current_violations from CSV
@@ -1663,7 +1677,7 @@
       });
       const addRow = (label, valueNodeOrText) => {
         metaGrid.append(
-          el("div", {class:"muted", style:"font-weight:600;"}, label),
+          el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"}, label),
           valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
         );
       };
@@ -1672,8 +1686,8 @@
       addRow("Commit Message", el("div", {}, commitMessage));
       addRow("Timestamp (ET)", el("div", {}, displayTimestamp));
       
-      // Add GitHub URL and Files Changed for history runs
-      if (kind === "hist") {
+      // Add GitHub URL and Files Changed for history-like runs
+      if (isHistoryLike) {
         // Add GitHub URL
         if (c.github_url && c.github_url.trim()) {
           addRow("Commit URL", el("div", {},
@@ -1706,13 +1720,13 @@
           const pymopTime = parseTime(c.end_to_end_times.pymop);
           const dylinTime = parseTime(c.end_to_end_times.dylin);
 
-          addRow("Original end-to-end test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
-          addRow("PyMOP end-to-end test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
-          addRow("Dylin end-to-end test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
+          addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
+          addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
+          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
         } else {
-          addRow("Original end-to-end test time", el("div", {}, "x"));
-          addRow("PyMOP end-to-end test time", el("div", {}, "x"));
-          addRow("Dylin end-to-end test time", el("div", {}, "x"));
+          addRow("Original E2E test time", el("div", {}, "x"));
+          addRow("PyMOP E2E test time", el("div", {}, "x"));
+          addRow("Dylin E2E test time", el("div", {}, "x"));
         }
       }
       
@@ -1898,12 +1912,15 @@
       const v = findViolation(c, id);
       if (!v) return app.append(el("div", {}, "Violation not found"));
 
-      app.append(breadcrumb([
-        {href:`#/${kind}`, text:"Home"},
-        {href:`#/${kind}/p/${p.slug}`, text:p.full_name},
-        {href:`#/${kind}/p/${p.slug}/c/${sha}`, text: sha},
-        {text: v.id}
-      ]));
+      // Survey participant view: no breadcrumbs inside a project
+      if (kind !== "survey") {
+        app.append(breadcrumb([
+          {href:`#/${kind}`, text:"Home"},
+          {href:`#/${kind}/p/${p.slug}`, text:p.full_name},
+          {href:`#/${kind}/p/${p.slug}/c/${sha}`, text: sha},
+          {text: v.id}
+        ]));
+      }
 
       const violationInfo = [
         el("div", {}, el("strong", {}, "Project: "), p.full_name),
