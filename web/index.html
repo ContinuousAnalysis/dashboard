@@ -463,6 +463,9 @@
 
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
       app.append(input);
+      app.append(el("div", {class:"muted", style:"margin:6px 0 8px 0; font-size:13px;"},
+        "Each row in this table is a warning detected in this project for the commit shown above."
+      ));
 
       const table = el("table",
         {},
@@ -1333,9 +1336,7 @@
                 return Mp.t + (innerHp - normalized * innerHp);
               };
               
-              // Right y-axis labels for times
-              // Always show failure marker at bottom.
-              plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(Mp.t + innerHp + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, "-5"));
+              // Right y-axis labels for times (log scale; do not show -5 — failures are pinned visually at bottom)
               const logTickCandidates = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
               const logTicks = logTickCandidates.filter(v => v <= yMaxTime);
               if (!logTicks.includes(0)) logTicks.unshift(0);
@@ -1384,7 +1385,8 @@
                   });
                   
                   const showTooltip = (e) => {
-                    tooltip.innerHTML = `<strong>Commit: ${fullSha || commitSha}</strong><span>${label}: ${t > -5 ? t.toFixed(2) + 's' : 'Failed'}</span>`;
+                    const timeStr = t > -5 ? `${t.toFixed(2)}s` : "Not Available";
+                    tooltip.innerHTML = `<strong>Commit: ${fullSha || commitSha}</strong><span>${label}: ${timeStr}</span>`;
                     tooltip.style.display = "block";
                     tooltip.style.left = (e.clientX + 10) + "px";
                     tooltip.style.top = (e.clientY - 10) + "px";
@@ -1777,6 +1779,7 @@
       const c = findCommit(p, sha);
       if (!c) return app.append(el("div", {}, "Commit not found"));
 
+      const isSurveyKind = kind === "survey";
       const isHistoryLike = (kind === "hist" || kind === "survey");
       // Survey participant view: no breadcrumbs inside a project
       if (kind !== "survey") {
@@ -1962,6 +1965,11 @@
 
       const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
       app.append(input);
+      if (kind === "survey") {
+        app.append(el("div", {class:"muted", style:"margin:6px 0 8px 0; font-size:13px;"},
+          "Each row in this table is a warning detected in this project for the commit shown above."
+        ));
+      }
 
       const table = el("table",
         {},
@@ -1987,8 +1995,8 @@
             return (typeState.cut && cls.isCut) || (typeState.lib && cls.isLib) || (typeState.py && cls.isPy);
           })
           .filter(v =>
-            v.file.toLowerCase().includes(q) ||
-            String(v.line).includes(q) ||
+            (v.file || "").toLowerCase().includes(q) ||
+            String(v.line ?? "").includes(q) ||
             (v.specs||"").toLowerCase().includes(q)
           );
 
