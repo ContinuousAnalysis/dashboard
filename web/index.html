@@ -456,24 +456,27 @@
 
     function appendSurveyProjectMetadata(app, p) {
       if (!p) return;
-      const urlBoxContent = [
-        el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata")
-      ];
-      urlBoxContent.push(
-        el("div", {style:"display:flex; align-items:center; gap:8px; margin-bottom:8px;"},
-          el("span", {}, "Project: "),
-          el("span", {}, p.full_name || p.slug || "Project")
-        )
-      );
-      urlBoxContent.push(
-        el("div", {style:"display:flex; align-items:center; gap:8px;"},
-          el("span", {}, "Project URL: "),
-          p.url
-            ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
-            : el("span", {class:"muted"}, "—")
-        )
-      );
-      app.append(el("div", {class:"card", style:"width:100%; margin-bottom:6px; background:#f8f9fa; box-sizing:border-box;"}, ...urlBoxContent));
+      // Same two-column grid + label style as Commit Metadata (renderCommit metaGrid)
+      const metaGrid = el("div", {
+        style: "display:grid; grid-template-columns:minmax(220px, 15%) 1fr; gap:8px 8px; align-items:start;"
+      });
+      const addRow = (label, valueNodeOrText, helpText) => {
+        metaGrid.append(
+          el("div", {class:"muted", style:"font-weight:600; white-space:normal; line-height:1.35;"},
+            helpText ? withInfo(label, helpText) : label
+          ),
+          valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
+        );
+      };
+      addRow("Project", el("div", {}, p.full_name || p.slug || "—"), "Survey project name.");
+      addRow("Project URL", el("div", {}, p.url
+        ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
+        : el("span", {class:"muted"}, "—")
+      ), "Repository URL for this project.");
+      app.append(el("div", {class:"card"},
+        el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata"),
+        metaGrid
+      ));
     }
 
     // --------- Views ---------
