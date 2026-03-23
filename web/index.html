@@ -686,7 +686,10 @@
           addRow("Total Warnings Detected", el("div", {}, String(numCurrent)),
             "Count of total unique warnings detected in this commit.");
 
-          infoCard.append(metaGrid);
+          infoCard.append(
+            el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Commit Metadata"),
+            metaGrid
+          );
         }
 
         tbody.innerHTML = "";
@@ -2046,7 +2049,10 @@
         addRow("Coverage", el("div", {}, coverageDisplay));
       }
       
-      app.append(el("div", {class:"card"}, metaGrid));
+      app.append(el("div", {class:"card"},
+        el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Commit Metadata"),
+        metaGrid
+      ));
       // ---------------------------------------------------------
       // --- SAFER TABLE (avoid crashes if violations is missing) ---
       const typeState = { cut: true, lib: true, py: true };
