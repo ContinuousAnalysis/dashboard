@@ -66,7 +66,7 @@
     .violations-toolbar-hint {
       margin: 0 0 14px 0;
       padding: 0;
-      font-size: 13px;
+      font-size: 1rem;
       line-height: 1.5;
       color: var(--muted);
       max-width: 70ch;
@@ -74,8 +74,8 @@
     .violations-toolbar-controls {
       display: flex;
       flex-wrap: wrap;
-      align-items: flex-start;
-      gap: 14px 24px;
+      align-items: center;
+      gap: 12px 20px;
     }
     .violations-filter-group {
       display: flex;
@@ -112,11 +112,18 @@
       flex: 1 1 220px;
       min-width: min(100%, 200px);
       max-width: 100%;
+      display: flex;
+      align-items: center;
+      align-self: center;
     }
     .violations-toolbar .violations-search-input {
       width: 100%;
       margin: 0;
       box-sizing: border-box;
+      padding: 6px 10px;
+      line-height: 1.35;
+      min-height: 34px;
+      font-size: 0.875rem;
     }
     /* Triggering test: real names in black; placeholder stays muted */
     .triggering-test-value {
@@ -668,9 +675,8 @@
           addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
           addRow("Time to Monitor Tests with PyMOP (Without Libraries)", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (without libraries).");
           addRow("Time to Monitor Tests with PyMOP (With Libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (with libraries).");
-          addRow("Total Warnings Detected", el("div", {},
-            el("span", {style:"color:#6b7280;"}, String(numCurrent))
-          ), "Count of total unique warnings detected in this commit.");
+          addRow("Total Warnings Detected", el("div", {}, String(numCurrent)),
+            "Count of total unique warnings detected in this commit.");
 
           infoCard.append(metaGrid);
         }
@@ -1752,7 +1758,7 @@
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
-      app.append(el("div", {class:"muted", style:"margin:8px 0 10px 0; font-size:13px;"},
+      app.append(el("div", {class:"muted", style:"margin:8px 0 10px 0; font-size:1rem;"},
         "Note: Click a commit SHA in the table below to view detailed warnings and timing information for that commit."
       ));
       app.append(table);
@@ -2007,12 +2013,11 @@
       
       // For survey commit detail, match the main survey page format (no delta chips).
       if (isSurveyKind) {
-        addRow("Unique Warnings Detected", el("div", {},
-          el("span", {style:"color:#6b7280;"}, String(numCurrent))
-        ), "Count of unique warning detected in this commit.");
+        addRow("Total Warnings Detected", el("div", {}, String(numCurrent)),
+          "Count of total unique warnings detected in this commit.");
       } else {
-        // Build violation display: grey current, red delta +, green delta -
-        const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
+        // Main count in default text color; red/green for new/old deltas
+        const violationParts = [el("span", {}, String(numCurrent))];
         if (numNew > 0 && numOld > 0) {
           violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
           violationParts.push(el("span", {style:"color:#16a34a; margin-left:4px;"}, `(-${numOld})`));
@@ -2085,7 +2090,7 @@
       if (kind === "survey") {
         app.append(el("div", {class:"violations-toolbar"},
           el("p", {class:"violations-toolbar-hint"},
-            "Each row in this table is a warning detected in this project for the commit shown above."
+            "Note: Each row in this table is a warning detected in this project for the commit shown above."
           ),
           el("div", {class:"violations-toolbar-controls"},
             el("div", {class:"violations-filter-group"},
@@ -2100,17 +2105,21 @@
         app.append(input);
       }
 
+      const isSurveyCommitTable = kind === "survey";
+      const violationTableHeaderCells = [
+        el("th", {}, withInfo("File", "File path where the warning is reported.")),
+        el("th", {}, withInfo("Line", "Line number in the file where the warning is reported.")),
+        el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
+        ...(isSurveyCommitTable ? [] : [
+          el("th", {}, withInfo("Type", "Violation classification: Code Under Test, Library, or Python."))
+        ]),
+        el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
+        el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if not available).")),
+        el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
+      ];
       const table = el("table",
         {},
-        el("thead", {}, el("tr", {},
-          el("th", {}, withInfo("File", "File path where the warning is reported.")),
-          el("th", {}, withInfo("Line", "Line number in the file where the warning is reported.")),
-          el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
-          el("th", {}, withInfo("Type", "Violation classification: Code Under Test, Library, or Python.")),
-          el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
-          el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if not available).")),
-          el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
-        )),
+        el("thead", {}, el("tr", {}, ...violationTableHeaderCells)),
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
@@ -2136,10 +2145,11 @@
         ];
 
         const baseRepoUrl = p.url ? p.url.replace(/\.git$/i, "").replace(/\/+$/, "") : null;
+        const sectionColspan = isSurveyCommitTable ? "6" : "7";
         const appendSection = (label, items) => {
           if (!items.length) return;
           tbody.append(el("tr", {},
-            el("td", {colspan:"7", style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
+            el("td", {colspan: sectionColspan, style:"padding-top:14px; font-weight:700; color:#374151; background:#fafafa; border-bottom:1px solid var(--border);"}, label)
           ));
           items
             .slice()
@@ -2151,24 +2161,25 @@
             })
             .forEach(v => {
               const cls = classifyViolation(v);
-              const typeLabel = cls.isCut ? "Code Under Test (CUT)" : cls.isLib ? "Library" : "Python";
               const filePath = String(v.file || "").replace(/^\/+/, "");
               const lineNum = v.line != null ? Number(v.line) : null;
               const sourceUrl = (cls.isCut && baseRepoUrl && sha && filePath && lineNum)
                 ? `${baseRepoUrl}/blob/${sha}/${filePath}#L${lineNum}`
                 : null;
-              tbody.append(el("tr", {},
+              const typeLabel = cls.isCut ? "Code Under Test (CUT)" : cls.isLib ? "Library" : "Python";
+              const cells = [
                 el("td", {class:"cell-file-path"}, v.file),
                 el("td", {}, String(v.line)),
                 el("td", {}, sourceUrl
                   ? el("a", {href: sourceUrl, target: "_blank", class:"nowrap"}, "Open")
                   : el("span", {class:"muted"}, "N/A")
                 ),
-                el("td", {}, typeLabel),
+                ...(isSurveyCommitTable ? [] : [el("td", {}, typeLabel)]),
                 el("td", {}, renderSpecLinks(v.specs)),
                 renderTriggeringTestCell(v),
                 el("td", {}, String(v.count || 0))
-              ));
+              ];
+              tbody.append(el("tr", {}, ...cells));
             });
         };
 
