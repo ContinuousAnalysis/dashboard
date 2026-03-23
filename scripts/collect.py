@@ -256,9 +256,14 @@ def load_cumulative_times(project_name: str, base_dir: pathlib.Path = CUMULATIVE
                 continue
             
             if commit_sha not in times_by_commit:
-                times_by_commit[commit_sha] = {'original': -5.0, 'pymop': -5.0, 'dylin': -5.0}
+                times_by_commit[commit_sha] = {
+                    'original': -5.0,
+                    'pymop': -5.0,
+                    'pymop_libs': -5.0,
+                    'dylin': -5.0,
+                }
             
-            if algorithm in ['original', 'pymop', 'dylin']:
+            if algorithm in ['original', 'pymop', 'pymop_libs', 'dylin']:
                 times_by_commit[commit_sha][algorithm] = e2e_time
         
         return times_by_commit

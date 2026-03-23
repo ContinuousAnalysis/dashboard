@@ -85,14 +85,14 @@
       "span",
       {
         title: helpText || "",
-        style: "display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; margin-left:6px; border:1px solid #9ca3af; border-radius:50%; color:#6b7280; font-size:10px; font-weight:700; cursor:help; vertical-align:middle;"
+        style: "display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; margin-left:6px; border:1px solid #9ca3af; border-radius:50%; color:#6b7280; font-size:10px; font-weight:700; cursor:help; vertical-align:middle; flex:0 0 auto; pointer-events:auto; position:relative; z-index:2;"
       },
       "i"
     );
 
     const withInfo = (label, helpText) => el(
       "span",
-      { style: "display:inline-flex; align-items:center;" },
+      { style: "display:inline-flex; align-items:center; flex-wrap:wrap; row-gap:2px;" },
       label,
       infoIcon(helpText)
     );
@@ -471,11 +471,11 @@
           }
 
           const metaGrid = el("div", {
-            style: "display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; align-items:baseline;"
+            style: "display:grid; grid-template-columns:minmax(240px, 32%) 1fr; gap:8px 12px; align-items:start;"
           });
           const addRow = (label, valueNodeOrText, helpText) => {
             metaGrid.append(
-              el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"},
+              el("div", {class:"muted", style:"font-weight:600; white-space:normal; line-height:1.35;"},
                 helpText ? withInfo(label, helpText) : label
               ),
               valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
@@ -497,6 +497,7 @@
 
           const origTime = c.end_to_end_times ? parseTime(c.end_to_end_times.original) : -5.0;
           const pymopTime = c.end_to_end_times ? parseTime(c.end_to_end_times.pymop) : -5.0;
+          const pymopLibsTime = c.end_to_end_times ? parseTime(c.end_to_end_times.pymop_libs) : -5.0;
           const dylinTime = c.end_to_end_times ? parseTime(c.end_to_end_times.dylin) : -5.0;
 
           addRow("Commit", el("div", {}, sha ? el("code", {}, sha) : "—"), "Git commit SHA for this analyzed run.");
@@ -509,6 +510,7 @@
           addRow("Commit Files Changed", el("div", {}, numFiles), "Number of Python files changed in this commit.");
           addRow("Time to Run Only Tests", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
           addRow("Time to Monitor Tests with PyMOP (Without Libraries)", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (without libraries).");
+          addRow("Time to Monitor Tests with PyMOP (With Libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (with libraries).");
           addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
           addRow("Unique Warnings Detected", el("div", {},
             el("span", {style:"color:#6b7280;"}, String(numCurrent))
@@ -1709,11 +1711,11 @@
       const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
 
       const metaGrid = el("div", {
-        style: "display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; align-items:baseline;"
+        style: "display:grid; grid-template-columns:minmax(240px, 32%) 1fr; gap:8px 12px; align-items:start;"
       });
       const addRow = (label, valueNodeOrText, helpText) => {
         metaGrid.append(
-          el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"},
+          el("div", {class:"muted", style:"font-weight:600; white-space:normal; line-height:1.35;"},
             helpText ? withInfo(label, helpText) : label
           ),
           valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
@@ -1756,14 +1758,17 @@
         if (c.end_to_end_times) {
           const origTime = parseTime(c.end_to_end_times.original);
           const pymopTime = parseTime(c.end_to_end_times.pymop);
+          const pymopLibsTime = parseTime(c.end_to_end_times.pymop_libs);
           const dylinTime = parseTime(c.end_to_end_times.dylin);
 
           addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
           addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end runtime with PyMOP instrumentation.");
+          addRow("PyMOP E2E test time (with libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end runtime with PyMOP instrumentation including libraries.");
           addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end runtime with Dylin instrumentation.");
         } else {
           addRow("Original E2E test time", el("div", {}, "x"), "Original end-to-end test runtime without monitoring.");
           addRow("PyMOP E2E test time", el("div", {}, "x"), "End-to-end runtime with PyMOP instrumentation.");
+          addRow("PyMOP E2E test time (with libraries)", el("div", {}, "x"), "End-to-end runtime with PyMOP instrumentation including libraries.");
           addRow("Dylin E2E test time", el("div", {}, "x"), "End-to-end runtime with Dylin instrumentation.");
         }
       }
