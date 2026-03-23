@@ -145,6 +145,20 @@
       max-width: 36rem;
       vertical-align: top;
     }
+    /* Project metadata only: label column as wide as text so values sit left */
+    .project-metadata-grid {
+      display: grid;
+      grid-template-columns: max-content minmax(0, 1fr);
+      gap: 8px 16px;
+      align-items: start;
+    }
+    /* Commit metadata: fixed label column width (unchanged from original layout) */
+    .commit-metadata-grid {
+      display: grid;
+      grid-template-columns: minmax(220px, 29%) 1fr;
+      gap: 8px 8px;
+      align-items: start;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha256-LAEQ8l5cCwX6yFT1s1m8QX7wKjIvmyuHJ0v+qK2qTn0=" crossorigin="anonymous"></script>
 </head>
@@ -457,9 +471,7 @@
     function appendSurveyProjectMetadata(app, p) {
       if (!p) return;
       // Same two-column grid + label style as Commit Metadata (renderCommit metaGrid)
-      const metaGrid = el("div", {
-        style: "display:grid; grid-template-columns:minmax(220px, 6%) 1fr; gap:8px 8px; align-items:start;"
-      });
+      const metaGrid = el("div", {class: "project-metadata-grid"});
       const addRow = (label, valueNodeOrText, helpText) => {
         metaGrid.append(
           el("div", {class:"muted", style:"font-weight:600; white-space:normal; line-height:1.35;"},
@@ -644,9 +656,7 @@
             commitUrl = `${base}/commit/${sha}`;
           }
 
-          const metaGrid = el("div", {
-            style: "display:grid; grid-template-columns:minmax(220px, 29%) 1fr; gap:8px 8px; align-items:start;"
-          });
+          const metaGrid = el("div", {class: "commit-metadata-grid"});
           const addRow = (label, valueNodeOrText, helpText) => {
             metaGrid.append(
               el("div", {class:"muted", style:"font-weight:600; white-space:normal; line-height:1.35;"},
@@ -1927,9 +1937,7 @@
       const commitMessage = c.current_commit_message || "x";
       const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
 
-      const metaGrid = el("div", {
-        style: "display:grid; grid-template-columns:minmax(220px, 29%) 1fr; gap:8px 8px; align-items:start;"
-      });
+      const metaGrid = el("div", {class: "commit-metadata-grid"});
       const addRow = (label, valueNodeOrText, helpText) => {
         metaGrid.append(
           el("div", {class:"muted", style:"font-weight:600; white-space:normal; line-height:1.35;"},
