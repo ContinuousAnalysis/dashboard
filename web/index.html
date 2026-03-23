@@ -41,6 +41,19 @@
     }
     .commit-tooltip strong { display: block; margin-bottom: 4px; }
     .commit-tooltip span { display: block; }
+    .help-tooltip {
+      position: absolute;
+      background: rgba(17, 24, 39, 0.95);
+      color: white;
+      padding: 8px 10px;
+      border-radius: 6px;
+      font-size: 12px;
+      line-height: 1.35;
+      z-index: 2000;
+      max-width: 320px;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+      pointer-events: none;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha256-LAEQ8l5cCwX6yFT1s1m8QX7wKjIvmyuHJ0v+qK2qTn0=" crossorigin="anonymous"></script>
 </head>
@@ -81,14 +94,47 @@
       return n;
     };
 
-    const infoIcon = (helpText) => el(
-      "span",
-      {
-        title: helpText || "",
-        style: "display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; margin-left:6px; border:1px solid #9ca3af; border-radius:50%; color:#6b7280; font-size:10px; font-weight:700; cursor:help; vertical-align:middle; flex:0 0 auto; pointer-events:auto; position:relative; z-index:2;"
-      },
-      "i"
-    );
+    let activeHelpTooltip = null;
+    const hideHelpTooltip = () => {
+      if (activeHelpTooltip && activeHelpTooltip.parentNode) {
+        activeHelpTooltip.parentNode.removeChild(activeHelpTooltip);
+      }
+      activeHelpTooltip = null;
+    };
+    document.addEventListener("click", (evt) => {
+      if (!evt.target.closest("[data-help-icon='1']")) hideHelpTooltip();
+    });
+    const showHelpTooltip = (anchor, helpText) => {
+      hideHelpTooltip();
+      if (!helpText) return;
+      const tip = el("div", {class:"help-tooltip"}, helpText);
+      document.body.appendChild(tip);
+      const r = anchor.getBoundingClientRect();
+      const left = Math.max(8, Math.min(window.innerWidth - tip.offsetWidth - 8, r.left));
+      const top = Math.max(8, r.bottom + window.scrollY + 8);
+      tip.style.left = `${left + window.scrollX}px`;
+      tip.style.top = `${top}px`;
+      activeHelpTooltip = tip;
+    };
+    const infoIcon = (helpText) => {
+      const icon = el(
+        "button",
+        {
+          type: "button",
+          "data-help-icon": "1",
+          "aria-label": helpText || "Field explanation",
+          style: "display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; margin-left:6px; border:1px solid #9ca3af; border-radius:50%; color:#6b7280; background:white; font-size:11px; font-weight:700; cursor:pointer; vertical-align:middle; flex:0 0 auto; pointer-events:auto; position:relative; z-index:2; padding:0;"
+        },
+        "i"
+      );
+      icon.addEventListener("click", (evt) => {
+        evt.preventDefault();
+        evt.stopPropagation();
+        showHelpTooltip(icon, helpText || "");
+      });
+      icon.addEventListener("mouseenter", () => showHelpTooltip(icon, helpText || ""));
+      return icon;
+    };
 
     const withInfo = (label, helpText) => el(
       "span",
@@ -471,7 +517,7 @@
           }
 
           const metaGrid = el("div", {
-            style: "display:grid; grid-template-columns:minmax(240px, 32%) 1fr; gap:8px 12px; align-items:start;"
+            style: "display:grid; grid-template-columns:minmax(220px, 29%) 1fr; gap:8px 8px; align-items:start;"
           });
           const addRow = (label, valueNodeOrText, helpText) => {
             metaGrid.append(
@@ -1711,7 +1757,7 @@
       const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
 
       const metaGrid = el("div", {
-        style: "display:grid; grid-template-columns:minmax(240px, 32%) 1fr; gap:8px 12px; align-items:start;"
+        style: "display:grid; grid-template-columns:minmax(220px, 29%) 1fr; gap:8px 8px; align-items:start;"
       });
       const addRow = (label, valueNodeOrText, helpText) => {
         metaGrid.append(
