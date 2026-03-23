@@ -594,7 +594,7 @@
           el("th", {}, withInfo("Line", "Line number in the file where the warning is reported.")),
           el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
           el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
-          el("th", {}, withInfo("Triggering test", "First triggering test from cumulative violations_by_test (pymop_libs, else dylin).")),
+          el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if happen during setup, teardown, or not available).")),
           el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
         )),
         el("tbody")
@@ -2124,7 +2124,7 @@
           el("th", {}, withInfo("Type", "Violation classification: Code Under Test, Library, or Python."))
         ]),
         el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
-        el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if not available).")),
+        el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if happen during setup, teardown, or not available).")),
         el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
       ];
       const table = el("table",
