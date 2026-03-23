@@ -54,6 +54,83 @@
       box-shadow: 0 4px 14px rgba(0,0,0,0.25);
       pointer-events: none;
     }
+    /* Block above violation tables (survey): hint + filters + search */
+    .violations-toolbar {
+      margin: 16px 0 12px 0;
+      padding: 14px 16px;
+      background: linear-gradient(180deg, #fafbfc 0%, #f3f4f6 100%);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    }
+    .violations-toolbar-hint {
+      margin: 0 0 14px 0;
+      padding: 0;
+      font-size: 13px;
+      line-height: 1.5;
+      color: var(--muted);
+      max-width: 70ch;
+    }
+    .violations-toolbar-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-start;
+      gap: 14px 24px;
+    }
+    .violations-filter-group {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 14px;
+      flex: 1 1 260px;
+      min-width: 0;
+    }
+    .violations-toolbar-label {
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: #374151;
+      letter-spacing: 0.02em;
+      flex-shrink: 0;
+    }
+    .violations-checkboxes {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px 18px;
+      min-width: 0;
+    }
+    .violations-toolbar .violations-checkboxes label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      cursor: pointer;
+      user-select: none;
+      font-size: 0.875rem;
+      color: #1f2937;
+    }
+    .violations-search-wrap {
+      flex: 1 1 220px;
+      min-width: min(100%, 200px);
+      max-width: 100%;
+    }
+    .violations-toolbar .violations-search-input {
+      width: 100%;
+      margin: 0;
+      box-sizing: border-box;
+    }
+    /* Triggering test: real names in black; placeholder stays muted */
+    .triggering-test-value {
+      color: #111827;
+      font-weight: 500;
+    }
+    /* Violation file paths: wrap instead of forcing one long line */
+    .cell-file-path {
+      white-space: normal;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      max-width: 36rem;
+      vertical-align: top;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha256-LAEQ8l5cCwX6yFT1s1m8QX7wKjIvmyuHJ0v+qK2qTn0=" crossorigin="anonymous"></script>
 </head>
@@ -164,12 +241,19 @@
       return etString;
     };
 
-    /** From cumulative violations_by_test (pymop_libs then dylin); missing/None → em dash */
-    const fmtTriggeringTest = (v) => {
-      if (!v || v.triggering_test == null) return "—";
+    /** Raw test name or null if unavailable / None-like */
+    const parseTriggeringTest = (v) => {
+      if (!v || v.triggering_test == null) return null;
       const t = String(v.triggering_test).trim();
-      if (!t || /^none$/i.test(t) || /^null$/i.test(t) || t.toLowerCase() === "nan") return "—";
+      if (!t || /^none$/i.test(t) || /^null$/i.test(t) || t.toLowerCase() === "nan") return null;
       return t;
+    };
+    /** Table cell: black text for real tests, muted em dash for missing */
+    const renderTriggeringTestCell = (v) => {
+      const t = parseTriggeringTest(v);
+      return el("td", {class:"cell-triggering-test"},
+        t ? el("span", {class:"triggering-test-value"}, t) : el("span", {class:"muted"}, "—")
+      );
     };
 
     let DATA = null;
@@ -451,9 +535,7 @@
 
       // Violation type filters (multi-select)
       const filterState = { cut: true, lib: true, py: true };
-      const filterRow = el("div", {class:"controls", style:"display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0;"},
-        el("span", {class:"muted"}, "Show warnings in: ")
-      );
+      const checkboxWrap = el("div", {class:"violations-checkboxes"});
       const mkCheck = (key, label) => {
         const cb = el("input", {type:"checkbox"});
         cb.checked = !!filterState[key];
@@ -462,7 +544,7 @@
           filterState[key] = cb.checked;
           draw();
         });
-        return { cb, labelSpan, node: el("label", {style:"display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;"},
+        return { cb, labelSpan, node: el("label", {},
           cb,
           labelSpan
         )};
@@ -470,19 +552,24 @@
       const cutToggle = mkCheck("cut", "Code Under Test (CUT)");
       const libToggle = mkCheck("lib", "Library");
       const pyToggle = mkCheck("py", "Python");
-      filterRow.append(cutToggle.node, libToggle.node, pyToggle.node);
+      checkboxWrap.append(cutToggle.node, libToggle.node, pyToggle.node);
 
       const infoCard = el("div", {class:"card"});
       app.append(infoCard);
 
-      const input = el("input", {type:"search", placeholder:"Filter by file, checker/specification, or triggering test…", style:"flex:1; min-width:200px; max-width:420px;"});
-      filterRow.append(input);
+      const input = el("input", {type:"search", class:"violations-search-input", placeholder:"Filter by file, checker/specification, or triggering test…"});
 
-      app.append(el("div", {style:"margin:12px 0 8px 0;"},
-        el("div", {class:"muted", style:"margin:0 0 8px 0; font-size:13px; line-height:1.45;"},
+      app.append(el("div", {class:"violations-toolbar"},
+        el("p", {class:"violations-toolbar-hint"},
           "Each row in this table is a warning detected in this project for the commit shown above."
         ),
-        filterRow
+        el("div", {class:"violations-toolbar-controls"},
+          el("div", {class:"violations-filter-group"},
+            el("span", {class:"violations-toolbar-label"}, "Show warnings in"),
+            checkboxWrap
+          ),
+          el("div", {class:"violations-search-wrap"}, input)
+        )
       ));
 
       const table = el("table",
@@ -618,14 +705,14 @@
               ? `${baseRepoUrl}/blob/${sha}/${filePath}#L${lineNum}`
               : null;
             tbody.append(el("tr", {},
-              el("td", {class:"nowrap"}, v.file),
+              el("td", {class:"cell-file-path"}, v.file),
               el("td", {}, String(v.line)),
               el("td", {}, sourceUrl
                 ? el("a", {href: sourceUrl, target: "_blank", class:"nowrap"}, "Open")
                 : el("span", {class:"muted"}, "N/A")
               ),
               el("td", {}, renderSpecLinks(v.specs)),
-              el("td", {class:"muted"}, fmtTriggeringTest(v)),
+              renderTriggeringTestCell(v),
               el("td", {}, String(v.count || 0))
             ));
           });
@@ -952,7 +1039,7 @@
           )
           .forEach(v => {
             tbody.append(el("tr", {},
-              el("td", {class:"nowrap"}, v.file),
+              el("td", {class:"cell-file-path"}, v.file),
               el("td", {}, String(v.line)),
               el("td", {}, v.specs || "—"),
               el("td", {}, String(v.count || 0)),
@@ -1949,7 +2036,8 @@
       // ---------------------------------------------------------
       // --- SAFER TABLE (avoid crashes if violations is missing) ---
       const typeState = { cut: true, lib: true, py: true };
-      const typeRow = el("div", {class:"controls", style:"display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0;"},
+      const surveyCheckboxWrap = el("div", {class:"violations-checkboxes"});
+      const typeRow = kind === "survey" ? null : el("div", {class:"controls", style:"display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0;"},
         el("span", {class:"muted"}, "Show warnings in: ")
       );
       const mkType = (key, label) => {
@@ -1960,7 +2048,10 @@
           typeState[key] = cb.checked;
           draw();
         });
-        return { cb, labelSpan, node: el("label", {style:"display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;"},
+        const labelProps = kind === "survey"
+          ? {}
+          : {style:"display:flex; align-items:center; gap:6px; cursor:pointer; user-select:none;"};
+        return { cb, labelSpan, node: el("label", labelProps,
           cb,
           labelSpan
         )};
@@ -1978,16 +2069,31 @@
       const cutT = mkType("cut", `Code Under Test (CUT) (${cutTotal})`);
       const libT = mkType("lib", `Library (${libTotal})`);
       const pyT = mkType("py", `Python (${pyTotal})`);
-      typeRow.append(cutT.node, libT.node, pyT.node);
-
-      const input = el("input", {type:"search", placeholder:"Filter by file, checker/specification, or triggering test…", style:"flex:1; min-width:200px; max-width:420px;"});
       if (kind === "survey") {
-        typeRow.append(input);
-        app.append(el("div", {style:"margin:12px 0 8px 0;"},
-          el("div", {class:"muted", style:"margin:0 0 8px 0; font-size:13px; line-height:1.45;"},
+        surveyCheckboxWrap.append(cutT.node, libT.node, pyT.node);
+      } else {
+        typeRow.append(cutT.node, libT.node, pyT.node);
+      }
+
+      const input = el("input", {
+        type:"search",
+        placeholder:"Filter by file, checker/specification, or triggering test…",
+        ...(kind === "survey"
+          ? {class:"violations-search-input"}
+          : {style:"flex:1; min-width:200px; max-width:420px;"})
+      });
+      if (kind === "survey") {
+        app.append(el("div", {class:"violations-toolbar"},
+          el("p", {class:"violations-toolbar-hint"},
             "Each row in this table is a warning detected in this project for the commit shown above."
           ),
-          typeRow
+          el("div", {class:"violations-toolbar-controls"},
+            el("div", {class:"violations-filter-group"},
+              el("span", {class:"violations-toolbar-label"}, "Show warnings in"),
+              surveyCheckboxWrap
+            ),
+            el("div", {class:"violations-search-wrap"}, input)
+          )
         ));
       } else {
         app.append(typeRow);
@@ -2052,7 +2158,7 @@
                 ? `${baseRepoUrl}/blob/${sha}/${filePath}#L${lineNum}`
                 : null;
               tbody.append(el("tr", {},
-                el("td", {class:"nowrap"}, v.file),
+                el("td", {class:"cell-file-path"}, v.file),
                 el("td", {}, String(v.line)),
                 el("td", {}, sourceUrl
                   ? el("a", {href: sourceUrl, target: "_blank", class:"nowrap"}, "Open")
@@ -2060,7 +2166,7 @@
                 ),
                 el("td", {}, typeLabel),
                 el("td", {}, renderSpecLinks(v.specs)),
-                el("td", {class:"muted"}, fmtTriggeringTest(v)),
+                renderTriggeringTestCell(v),
                 el("td", {}, String(v.count || 0))
               ));
             });
@@ -2093,12 +2199,17 @@
         appendSurveyProjectMetadata(app, p);
       }
 
+      const triggeringTestName = parseTriggeringTest(v);
       const violationInfo = [
         el("div", {}, el("strong", {}, "Project: "), p.full_name),
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
         el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
-        el("div", {}, el("strong", {}, "Triggering test: "), fmtTriggeringTest(v)),
+        el("div", {}, el("strong", {}, "Triggering test: "),
+          triggeringTestName
+            ? el("span", {class:"triggering-test-value"}, triggeringTestName)
+            : el("span", {class:"muted"}, "—")
+        ),
         el("div", {}, el("strong", {}, "Total Occurrences: "), String(v.count || 0))
       ];
       
