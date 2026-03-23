@@ -66,10 +66,17 @@
     .violations-toolbar-hint {
       margin: 0 0 14px 0;
       padding: 0;
-      font-size: 1rem;
+      font-size: 13px;
       line-height: 1.5;
       color: var(--muted);
       max-width: 70ch;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    /* Commit list note above SHA table (same underline treatment) */
+    .dashboard-note-line {
+      text-decoration: underline;
+      text-underline-offset: 3px;
     }
     .violations-toolbar-controls {
       display: flex;
@@ -564,10 +571,11 @@
       const infoCard = el("div", {class:"card"});
       app.append(infoCard);
 
-      const input = el("input", {type:"search", class:"violations-search-input", placeholder:"Filter by file, checker/specification, or triggering test…"});
+      const input = el("input", {type:"search", class:"violations-search-input", placeholder:"Filter by file path, checker/specification, or triggering test…"});
 
       app.append(el("div", {class:"violations-toolbar"},
         el("p", {class:"violations-toolbar-hint"},
+          el("strong", {}, "Note: "),
           "Each row in this table is a warning detected in this project for the commit shown above."
         ),
         el("div", {class:"violations-toolbar-controls"},
@@ -687,8 +695,8 @@
         const q = (input.value || "").toLowerCase();
         const qFiltered = violations.filter(v =>
           (v.file || "").toLowerCase().includes(q) ||
-          String(v.line).includes(q) ||
-          (v.specs || "").toLowerCase().includes(q)
+          (v.specs || "").toLowerCase().includes(q) ||
+          (parseTriggeringTest(v) || "").toLowerCase().includes(q)
         );
 
         const sections = [
@@ -1758,8 +1766,9 @@
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
-      app.append(el("div", {class:"muted", style:"margin:8px 0 10px 0; font-size:1rem;"},
-        "Note: Click a commit SHA in the table below to view detailed warnings and timing information for that commit."
+      app.append(el("div", {class:"muted dashboard-note-line", style:"margin:8px 0 10px 0; font-size:13px;"},
+        el("strong", {}, "Note: "),
+        "Click a commit SHA in the table below to view detailed warnings and timing information for that commit."
       ));
       app.append(table);
 
@@ -2082,7 +2091,7 @@
 
       const input = el("input", {
         type:"search",
-        placeholder:"Filter by file, checker/specification, or triggering test…",
+        placeholder:"Filter by file path, checker/specification, or triggering test…",
         ...(kind === "survey"
           ? {class:"violations-search-input"}
           : {style:"flex:1; min-width:200px; max-width:420px;"})
@@ -2090,7 +2099,8 @@
       if (kind === "survey") {
         app.append(el("div", {class:"violations-toolbar"},
           el("p", {class:"violations-toolbar-hint"},
-            "Note: Each row in this table is a warning detected in this project for the commit shown above."
+            el("strong", {}, "Note: "),
+            "Each row in this table is a warning detected in this project for the commit shown above."
           ),
           el("div", {class:"violations-toolbar-controls"},
             el("div", {class:"violations-filter-group"},
@@ -2134,8 +2144,8 @@
           })
           .filter(v =>
             (v.file || "").toLowerCase().includes(q) ||
-            String(v.line ?? "").includes(q) ||
-            (v.specs||"").toLowerCase().includes(q)
+            (v.specs||"").toLowerCase().includes(q) ||
+            (parseTriggeringTest(v) || "").toLowerCase().includes(q)
           );
 
         const sections = [
