@@ -249,9 +249,10 @@ def _first_test_from_brace(brace_str: str) -> Optional[str]:
     inner = s[1:-1].strip()
     if not inner or inner.lower() == "none":
         return None
-    for m in re.finditer(r"'([^']*)'", brace_str):
-        if m.group(1):
-            return m.group(1)
+    for m in re.finditer(r"'([^']*)'|\"([^\"]+)\"", brace_str):
+        g = m.group(1) or m.group(2)
+        if g:
+            return g
     return None
 
 
@@ -273,11 +274,13 @@ def parse_violations_by_test_cell(cell: str) -> Dict[str, str]:
         raw = raw.strip()
         if not raw:
             continue
+        # idx points at '=' in "={...}" (e.g. ...:266={'test'} or ...:266={None})
         idx = raw.rfind("={")
         if idx == -1:
             continue
         left = raw[:idx]
-        brace_rest = raw[idx + 2 :]
+        # Slice from the '{' — idx+2 incorrectly skipped the opening brace and broke parsing.
+        brace_rest = raw[idx + 1 :]
         if not brace_rest.startswith("{"):
             continue
         if ":" not in left:

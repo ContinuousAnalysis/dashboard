@@ -164,10 +164,12 @@
       return etString;
     };
 
-    /** From cumulative violations_by_test (pymop_libs then dylin); empty → em dash */
+    /** From cumulative violations_by_test (pymop_libs then dylin); missing/None → em dash */
     const fmtTriggeringTest = (v) => {
-      const t = v && v.triggering_test != null ? String(v.triggering_test).trim() : "";
-      return t || "—";
+      if (!v || v.triggering_test == null) return "—";
+      const t = String(v.triggering_test).trim();
+      if (!t || /^none$/i.test(t) || /^null$/i.test(t) || t.toLowerCase() === "nan") return "—";
+      return t;
     };
 
     let DATA = null;
@@ -305,7 +307,14 @@
     }
     function findProject(ds, slug){ return (ds.projects||[]).find(p => p.slug === slug); }
     function findCommit(p, sha){ return (p.commits||[]).find(c => c.sha === sha); }
-    function findViolation(c, id){ return (c.violations||[]).find(v => v.id === id); }
+    function findViolation(c, id){
+      const lists = [c.all_violations, c.violations].filter(Boolean);
+      for (const list of lists) {
+        const v = list.find(x => x.id === id);
+        if (v) return v;
+      }
+      return undefined;
+    }
     function findPr(p, prNum) { const n = parseInt(prNum, 10); return (p.prs||[]).find(pr => pr.pr_number === n || pr.pr_number === prNum); }
 
     // Classify a PR violation into CUT / dependency / Python buckets based on its file path
@@ -1993,7 +2002,7 @@
           el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
           el("th", {}, withInfo("Type", "Violation classification: Code Under Test, Library, or Python.")),
           el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
-          el("th", {}, withInfo("Triggering test", "First triggering test from cumulative violations_by_test (pymop_libs, else dylin).")),
+          el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if not available).")),
           el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
         )),
         el("tbody")
