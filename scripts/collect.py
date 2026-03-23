@@ -232,6 +232,126 @@ def parse_time(val) -> float:
     except (ValueError, TypeError):
         return -5.0
 
+
+def _triggering_test_key(file: str, line: int) -> str:
+    """Stable key for matching cumulative violations_by_test to dashboard violations."""
+    p = _normalize_path((file or "").strip())
+    if p.startswith("/"):
+        p = p[1:]
+    return f"{p}|{int(line)}"
+
+
+def _first_test_from_brace(brace_str: str) -> Optional[str]:
+    """Extract first quoted test name from '{...}' content; skip {None} and empty."""
+    s = brace_str.strip()
+    if not s.startswith("{") or not s.endswith("}"):
+        return None
+    inner = s[1:-1].strip()
+    if not inner or inner.lower() == "none":
+        return None
+    for m in re.finditer(r"'([^']*)'", brace_str):
+        if m.group(1):
+            return m.group(1)
+    return None
+
+
+def parse_violations_by_test_cell(cell: str) -> Dict[str, str]:
+    """
+    Parse cumulative CSV column violations_by_test.
+    Segments look like:
+      Spec:/path/to/file.py:266={None}
+      Spec:/path/file.py:296={'tests/foo.py::test_bar'}
+    Returns map: _triggering_test_key -> first test name (first segment wins per location).
+    """
+    result: Dict[str, str] = {}
+    if cell is None:
+        return result
+    s = str(cell).strip()
+    if not s:
+        return result
+    for raw in ENTRY_SEP.split(s.strip("; ")):
+        raw = raw.strip()
+        if not raw:
+            continue
+        idx = raw.rfind("={")
+        if idx == -1:
+            continue
+        left = raw[:idx]
+        brace_rest = raw[idx + 2 :]
+        if not brace_rest.startswith("{"):
+            continue
+        if ":" not in left:
+            continue
+        left2, line_s = left.rsplit(":", 1)
+        try:
+            line = int(line_s.strip())
+        except Exception:
+            continue
+        if ":" in left2:
+            _spec, file_part = left2.split(":", 1)
+        else:
+            file_part = left2
+        file_part = _normalize_path(file_part.strip())
+        if not file_part:
+            continue
+        first_test = _first_test_from_brace(brace_rest)
+        if not first_test:
+            continue
+        key = _triggering_test_key(file_part, line)
+        if key not in result:
+            result[key] = first_test
+    return result
+
+
+def load_triggering_tests_by_commit(project_name: str, base_dir: pathlib.Path = CUMULATIVE_DIR) -> Dict[str, Dict[str, str]]:
+    """
+    Per commit SHA: map location key -> triggering test name.
+    Uses algorithm 'pymop_libs' first, then 'dylin' for locations still missing.
+    Never uses 'pymop' (without libraries).
+    """
+    repo_name = project_name.split("/")[-1] if "/" in project_name else project_name
+    cumulative_csv = base_dir / f"{repo_name}-cumulative-results.csv"
+    if not cumulative_csv.exists():
+        return {}
+    try:
+        cum_df = pd.read_csv(cumulative_csv, dtype=str).fillna("")
+        cum_df.columns = [c.strip().lower() for c in cum_df.columns]
+    except Exception as e:
+        print(f"Warning: Could not read cumulative CSV for triggering tests ({project_name}): {e}")
+        return {}
+
+    libs_by_sha: Dict[str, Dict[str, str]] = {}
+    dylin_by_sha: Dict[str, Dict[str, str]] = {}
+
+    for _, row in cum_df.iterrows():
+        commit_sha = str(row.get("commit_sha", "")).strip()
+        algorithm = str(row.get("algorithm", "")).strip().lower()
+        vbt = str(row.get("violations_by_test", "")).strip()
+        if not commit_sha or not vbt:
+            continue
+        parsed = parse_violations_by_test_cell(vbt)
+        if not parsed:
+            continue
+        if algorithm == "pymop_libs":
+            libs_by_sha.setdefault(commit_sha, {}).update(parsed)
+        elif algorithm == "dylin":
+            dylin_by_sha.setdefault(commit_sha, {}).update(parsed)
+
+    out: Dict[str, Dict[str, str]] = {}
+    all_shas = set(libs_by_sha.keys()) | set(dylin_by_sha.keys())
+    for sha in all_shas:
+        merged: Dict[str, str] = {}
+        for k, v in libs_by_sha.get(sha, {}).items():
+            if v:
+                merged[k] = v
+        for k, v in dylin_by_sha.get(sha, {}).items():
+            if k not in merged and v:
+                merged[k] = v
+        if merged:
+            out[sha] = merged
+    return out
+
+
 def load_cumulative_times(project_name: str, base_dir: pathlib.Path = CUMULATIVE_DIR) -> Dict[str, Dict[str, float]]:
     """Load end-to-end times from cumulative results CSV for a project."""
     # Extract repo name from project name (e.g., "owner/repo" -> "repo")
@@ -697,11 +817,14 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
                 # Load time data from cumulative results (only for history runs)
                 # Use the configured cumulative_dir (survey uses survey_cumulative_results).
                 times_by_commit = load_cumulative_times(full, base_dir=cumulative_dir)
+                triggering_by_commit = load_triggering_tests_by_commit(full, base_dir=cumulative_dir)
                 
                 # Add time data to commits_map
                 for sha in commits_map:
                     if sha in times_by_commit:
                         commits_map[sha]["end_to_end_times"] = times_by_commit[sha]
+                    if sha in triggering_by_commit:
+                        commits_map[sha]["triggering_tests_by_location"] = triggering_by_commit[sha]
 
                 for sha, obj in commits_map.items():
                     by_loc: Dict[Tuple[str,int], dict] = {}
@@ -713,16 +836,19 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
                         rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
                         rec["specs"].add(v["spec"])
 
+                    trig_map: Dict[str, str] = obj.get("triggering_tests_by_location") or {}
                     violations = []
                     for (f, ln), rec in sorted(by_loc.items(), key=lambda t: (t[0][0], t[0][1])):
                         spec_list = sorted(rec["specs"])
+                        tkey = _triggering_test_key(f, int(ln))
                         violations.append({
                             "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
                             "file": f,
                             "line": int(ln),
                             "count": len(spec_list),
                             "specs": ";".join(spec_list),
-                            "breakdown": [{"spec": s, "count": 1} for s in spec_list]
+                            "breakdown": [{"spec": s, "count": 1} for s in spec_list],
+                            "triggering_test": trig_map.get(tkey, ""),
                         })
 
                     # Use num_current_violations from CSV for counts.locations (total current violations)
@@ -764,6 +890,9 @@ def build_dataset_from_local(compute_after_first: bool = False, data_dir: pathli
                     # Preserve raw current_violations string for survey processing
                     if obj.get("current_violations_raw") is not None:
                         commit_data["current_violations_raw"] = obj["current_violations_raw"]
+
+                    if obj.get("triggering_tests_by_location") is not None:
+                        commit_data["triggering_tests_by_location"] = obj["triggering_tests_by_location"]
                     
                     proj["commits"].append(commit_data)
 
@@ -894,16 +1023,19 @@ def build_survey_dataset() -> dict:
                 key = (v["file"], v["line"])
                 rec = by_loc.setdefault(key, {"file": v["file"], "line": v["line"], "specs": set()})
                 rec["specs"].add(v["spec"])
+            tt_map: Dict[str, str] = c.get("triggering_tests_by_location") or {}
             all_violations = []
             for (f, ln), rec in sorted(by_loc.items(), key=lambda t: (t[0][0], t[0][1])):
                 spec_list = sorted(rec["specs"])
+                tkey = _triggering_test_key(f, int(ln))
                 all_violations.append({
                     "id": hashlib.sha1(f"{f}|{ln}".encode("utf-8")).hexdigest()[:12],
                     "file": f,
                     "line": int(ln),
                     "count": len(spec_list),
                     "specs": ";".join(spec_list),
-                    "breakdown": [{"spec": s, "count": 1} for s in spec_list]
+                    "breakdown": [{"spec": s, "count": 1} for s in spec_list],
+                    "triggering_test": tt_map.get(tkey, ""),
                 })
             c["all_violations"] = all_violations
 

@@ -164,6 +164,12 @@
       return etString;
     };
 
+    /** From cumulative violations_by_test (pymop_libs then dylin); empty → em dash */
+    const fmtTriggeringTest = (v) => {
+      const t = v && v.triggering_test != null ? String(v.triggering_test).trim() : "";
+      return t || "—";
+    };
+
     let DATA = null;
 
     async function load() {
@@ -436,7 +442,7 @@
 
       // Violation type filters (multi-select)
       const filterState = { cut: true, lib: true, py: true };
-      const filterRow = el("div", {class:"controls", style:"margin:8px 0; gap:12px; align-items:center;"},
+      const filterRow = el("div", {class:"controls", style:"display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0;"},
         el("span", {class:"muted"}, "Show warnings in: ")
       );
       const mkCheck = (key, label) => {
@@ -456,15 +462,18 @@
       const libToggle = mkCheck("lib", "Library");
       const pyToggle = mkCheck("py", "Python");
       filterRow.append(cutToggle.node, libToggle.node, pyToggle.node);
-      app.append(filterRow);
 
       const infoCard = el("div", {class:"card"});
       app.append(infoCard);
 
-      const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
-      app.append(input);
-      app.append(el("div", {class:"muted", style:"margin:6px 0 8px 0; font-size:13px;"},
-        "Each row in this table is a warning detected in this project for the commit shown above."
+      const input = el("input", {type:"search", placeholder:"Filter by file, checker/specification, or triggering test…", style:"flex:1; min-width:200px; max-width:420px;"});
+      filterRow.append(input);
+
+      app.append(el("div", {style:"margin:12px 0 8px 0;"},
+        el("div", {class:"muted", style:"margin:0 0 8px 0; font-size:13px; line-height:1.45;"},
+          "Each row in this table is a warning detected in this project for the commit shown above."
+        ),
+        filterRow
       ));
 
       const table = el("table",
@@ -474,7 +483,7 @@
           el("th", {}, withInfo("Line", "Line number in the file where the warning is reported.")),
           el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
           el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
-          el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if unavailable).")),
+          el("th", {}, withInfo("Triggering test", "First triggering test from cumulative violations_by_test (pymop_libs, else dylin).")),
           el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
         )),
         el("tbody")
@@ -607,7 +616,7 @@
                 : el("span", {class:"muted"}, "N/A")
               ),
               el("td", {}, renderSpecLinks(v.specs)),
-              el("td", {class:"muted"}, "to be added..."),
+              el("td", {class:"muted"}, fmtTriggeringTest(v)),
               el("td", {}, String(v.count || 0))
             ));
           });
@@ -1931,7 +1940,7 @@
       // ---------------------------------------------------------
       // --- SAFER TABLE (avoid crashes if violations is missing) ---
       const typeState = { cut: true, lib: true, py: true };
-      const typeRow = el("div", {class:"controls", style:"margin:8px 0; gap:12px; align-items:center;"},
+      const typeRow = el("div", {class:"controls", style:"display:flex; flex-wrap:wrap; align-items:center; gap:12px; margin:0;"},
         el("span", {class:"muted"}, "Show warnings in: ")
       );
       const mkType = (key, label) => {
@@ -1961,14 +1970,19 @@
       const libT = mkType("lib", `Library (${libTotal})`);
       const pyT = mkType("py", `Python (${pyTotal})`);
       typeRow.append(cutT.node, libT.node, pyT.node);
-      app.append(typeRow);
 
-      const input = el("input", {type:"search", placeholder:"Filter by file/spec…", style:"width:320px;"});
-      app.append(input);
+      const input = el("input", {type:"search", placeholder:"Filter by file, checker/specification, or triggering test…", style:"flex:1; min-width:200px; max-width:420px;"});
       if (kind === "survey") {
-        app.append(el("div", {class:"muted", style:"margin:6px 0 8px 0; font-size:13px;"},
-          "Each row in this table is a warning detected in this project for the commit shown above."
+        typeRow.append(input);
+        app.append(el("div", {style:"margin:12px 0 8px 0;"},
+          el("div", {class:"muted", style:"margin:0 0 8px 0; font-size:13px; line-height:1.45;"},
+            "Each row in this table is a warning detected in this project for the commit shown above."
+          ),
+          typeRow
         ));
+      } else {
+        app.append(typeRow);
+        app.append(input);
       }
 
       const table = el("table",
@@ -1979,7 +1993,7 @@
           el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
           el("th", {}, withInfo("Type", "Violation classification: Code Under Test, Library, or Python.")),
           el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
-          el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if unavailable).")),
+          el("th", {}, withInfo("Triggering test", "First triggering test from cumulative violations_by_test (pymop_libs, else dylin).")),
           el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
         )),
         el("tbody")
@@ -2037,7 +2051,7 @@
                 ),
                 el("td", {}, typeLabel),
                 el("td", {}, renderSpecLinks(v.specs)),
-                el("td", {class:"muted"}, "to be added..."),
+                el("td", {class:"muted"}, fmtTriggeringTest(v)),
                 el("td", {}, String(v.count || 0))
               ));
             });
@@ -2075,6 +2089,7 @@
         el("div", {}, el("strong", {}, "Commit: "), el("code", {}, sha)),
         el("div", {}, el("strong", {}, "File: "), v.file, " : ", String(v.line)),
         el("div", {}, el("strong", {}, "Specs: "), v.specs || "—"),
+        el("div", {}, el("strong", {}, "Triggering test: "), fmtTriggeringTest(v)),
         el("div", {}, el("strong", {}, "Total Occurrences: "), String(v.count || 0))
       ];
       
