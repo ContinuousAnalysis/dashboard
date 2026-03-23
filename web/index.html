@@ -81,6 +81,22 @@
       return n;
     };
 
+    const infoIcon = (helpText) => el(
+      "span",
+      {
+        title: helpText || "",
+        style: "display:inline-flex; align-items:center; justify-content:center; width:14px; height:14px; margin-left:6px; border:1px solid #9ca3af; border-radius:50%; color:#6b7280; font-size:10px; font-weight:700; cursor:help; vertical-align:middle;"
+      },
+      "i"
+    );
+
+    const withInfo = (label, helpText) => el(
+      "span",
+      { style: "display:inline-flex; align-items:center;" },
+      label,
+      infoIcon(helpText)
+    );
+
     const fmtUTC = (epoch) => epoch ? new Date(epoch*1000).toUTCString() : "—";
     
     const fmtET = (epoch) => {
@@ -373,7 +389,7 @@
       // Violation type filters (multi-select)
       const filterState = { cut: true, lib: true, py: true };
       const filterRow = el("div", {class:"controls", style:"margin:8px 0; gap:12px; align-items:center;"},
-        el("span", {class:"muted"}, "Show: ")
+        el("span", {class:"muted"}, "Show warnings in: ")
       );
       const mkCheck = (key, label) => {
         const cb = el("input", {type:"checkbox"});
@@ -403,12 +419,12 @@
       const table = el("table",
         {},
         el("thead", {}, el("tr", {},
-          el("th", {}, "File"),
-          el("th", {}, "Line"),
-          el("th", {}, "Source URL"),
-          el("th", {}, "Specification"),
-          el("th", {}, "Triggering test"),
-          el("th", {}, "Total Occurrences")
+          el("th", {}, withInfo("File", "File path where the warning is reported.")),
+          el("th", {}, withInfo("Line", "Line number in the file where the warning is reported.")),
+          el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
+          el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
+          el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if unavailable).")),
+          el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
         )),
         el("tbody")
       );
@@ -457,9 +473,11 @@
           const metaGrid = el("div", {
             style: "display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; align-items:baseline;"
           });
-          const addRow = (label, valueNodeOrText) => {
+          const addRow = (label, valueNodeOrText, helpText) => {
             metaGrid.append(
-              el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"}, label),
+              el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"},
+                helpText ? withInfo(label, helpText) : label
+              ),
               valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
             );
           };
@@ -481,20 +499,20 @@
           const pymopTime = c.end_to_end_times ? parseTime(c.end_to_end_times.pymop) : -5.0;
           const dylinTime = c.end_to_end_times ? parseTime(c.end_to_end_times.dylin) : -5.0;
 
-          addRow("Commit", el("div", {}, sha ? el("code", {}, sha) : "—"));
-          addRow("Commit Message", el("div", {}, commitMessage));
+          addRow("Commit", el("div", {}, sha ? el("code", {}, sha) : "—"), "Git commit SHA for this analyzed run.");
+          addRow("Commit Message", el("div", {}, commitMessage), "Commit message associated with this SHA.");
           addRow("Commit URL", el("div", {}, commitUrl
             ? el("a", {href: commitUrl, target: "_blank", title: commitUrl, style:"color:#2563eb; word-break:break-all;"}, "Open on GitHub")
             : el("span", {class:"muted"}, "—")
-          ));
-          addRow("Timestamp (ET)", el("div", {}, ts ? fmtET(ts) : "—"));
-          addRow("Files Changed", el("div", {}, numFiles));
-          addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
-          addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
-          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
-          addRow("Unique Violations", el("div", {},
+          ), "Direct link to this commit on GitHub.");
+          addRow("Commit Timestamp (ET)", el("div", {}, ts ? fmtET(ts) : "—"), "Commit timestamp shown in Eastern Time.");
+          addRow("Commit Files Changed", el("div", {}, numFiles), "Number of Python files changed in this commit.");
+          addRow("Time to Run Only Tests", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
+          addRow("Time to Monitor Tests with PyMOP (Without Libraries)", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (without libraries).");
+          addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
+          addRow("Unique Warnings Detected", el("div", {},
             el("span", {style:"color:#6b7280;"}, String(numCurrent))
-          ));
+          ), "Count of unique warning detected in this commit.");
 
           infoCard.append(metaGrid);
         }
@@ -1527,21 +1545,23 @@
 
       // Table header
       const tableHeaders = [
-        el("th", {}, "Commit"),
-        el("th", {}, "Commit Message"),
-        el("th", {}, "Timestamp (ET)")
+        el("th", {}, withInfo("Commit", "Git commit SHA for this row.")),
+        el("th", {}, withInfo("Commit Message", "Commit message associated with the commit SHA.")),
+        el("th", {}, withInfo("Commit Timestamp (ET)", "Commit timestamp shown in Eastern Time."))
       ];
       
       // Add Files Changed column for history runs
       if (isHistoryLike) {
-        tableHeaders.push(el("th", {}, "Files Changed"));
-        tableHeaders.push(el("th", {}, "Monitoring Time"));
+        tableHeaders.push(el("th", {}, withInfo("Files Changed", "Number of Python files changed in this commit.")));
+        tableHeaders.push(el("th", {}, withInfo("Time to Run Only Tests", "Original end-to-end test runtime without monitoring.")));
+        tableHeaders.push(el("th", {}, withInfo("Time to Monitor Tests with PyMOP (Without Libraries)", "End-to-end time to run and monitor tests with PyMOP (without libraries).")));
+        tableHeaders.push(el("th", {}, withInfo("Time to Monitor Tests with Dylin (Without Libraries)", "End-to-end time to run and monitor tests with Dylin (without libraries).")));
       }
       
-      tableHeaders.push(el("th", {}, "Unique Violations"));
+      tableHeaders.push(el("th", {}, withInfo("Unique Warnings Detected", "Count of unique warning detected in this commit.")));
       
       if (hasCoverage) {
-        tableHeaders.push(el("th", {}, "Coverage"));
+        tableHeaders.push(el("th", {}, withInfo("Coverage", "Reported coverage value for this commit.")));
       }
 
       const table = el("table",
@@ -1691,16 +1711,18 @@
       const metaGrid = el("div", {
         style: "display:grid; grid-template-columns: 170px 1fr; gap:8px 12px; align-items:baseline;"
       });
-      const addRow = (label, valueNodeOrText) => {
+      const addRow = (label, valueNodeOrText, helpText) => {
         metaGrid.append(
-          el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"}, label),
+          el("div", {class:"muted", style:"font-weight:600; white-space:nowrap;"},
+            helpText ? withInfo(label, helpText) : label
+          ),
           valueNodeOrText?.nodeType ? valueNodeOrText : el("div", {}, String(valueNodeOrText ?? "—"))
         );
       };
 
-      addRow("Commit", el("div", {}, el("code", {}, sha)));
-      addRow("Commit Message", el("div", {}, commitMessage));
-      addRow("Timestamp (ET)", el("div", {}, displayTimestamp));
+      addRow("Commit", el("div", {}, el("code", {}, sha)), "Git commit SHA for this analyzed run.");
+      addRow("Commit Message", el("div", {}, commitMessage), "Commit message associated with this SHA.");
+      addRow("Timestamp (ET)", el("div", {}, displayTimestamp), "Commit timestamp shown in Eastern Time.");
       
       // Add GitHub URL and Files Changed for history-like runs
       if (isHistoryLike) {
@@ -1713,14 +1735,14 @@
               title: c.github_url,
               style: "color:#2563eb; word-break:break-all;"
             }, "Open on GitHub")
-          ));
+          ), "Direct link to this commit on GitHub.");
         }
         
         // Add Files Changed
         const numFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
           ? String(c.num_python_file_changed) 
           : "—";
-        addRow("Files Changed", el("div", {}, numFiles));
+        addRow("Files Changed", el("div", {}, numFiles), "Number of Python files changed in this commit.");
         
         // Add End-to-end times
         const parseTime = (val) => {
@@ -1736,13 +1758,13 @@
           const pymopTime = parseTime(c.end_to_end_times.pymop);
           const dylinTime = parseTime(c.end_to_end_times.dylin);
 
-          addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"));
-          addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"));
-          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"));
+          addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
+          addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end runtime with PyMOP instrumentation.");
+          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end runtime with Dylin instrumentation.");
         } else {
-          addRow("Original E2E test time", el("div", {}, "x"));
-          addRow("PyMOP E2E test time", el("div", {}, "x"));
-          addRow("Dylin E2E test time", el("div", {}, "x"));
+          addRow("Original E2E test time", el("div", {}, "x"), "Original end-to-end test runtime without monitoring.");
+          addRow("PyMOP E2E test time", el("div", {}, "x"), "End-to-end runtime with PyMOP instrumentation.");
+          addRow("Dylin E2E test time", el("div", {}, "x"), "End-to-end runtime with Dylin instrumentation.");
         }
       }
       
@@ -1794,7 +1816,7 @@
       } else if (numNew === 0 && numOld === 0) {
         violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
       }
-      addRow("Unique Violations", el("div", {}, ...violationParts));
+      addRow("Unique Violations", el("div", {}, ...violationParts), "Count of unique violation locations in this commit.");
       
       // Add coverage if available (hide on survey pages)
       if (kind !== "survey" && c.coverage !== undefined && c.coverage !== null) {
@@ -1807,7 +1829,7 @@
       // --- SAFER TABLE (avoid crashes if violations is missing) ---
       const typeState = { cut: true, lib: true, py: true };
       const typeRow = el("div", {class:"controls", style:"margin:8px 0; gap:12px; align-items:center;"},
-        el("span", {class:"muted"}, "Show: ")
+        el("span", {class:"muted"}, "Show warnings in: ")
       );
       const mkType = (key, label) => {
         const cb = el("input", {type:"checkbox"});
@@ -1844,13 +1866,13 @@
       const table = el("table",
         {},
         el("thead", {}, el("tr", {},
-          el("th", {}, "File"),
-          el("th", {}, "Line"),
-          el("th", {}, "Source URL"),
-          el("th", {}, "Type"),
-          el("th", {}, "Specification"),
-          el("th", {}, "Triggering test"),
-          el("th", {}, "Total Occurrences")
+          el("th", {}, withInfo("File", "File path where the warning is reported.")),
+          el("th", {}, withInfo("Line", "Line number in the file where the warning is reported.")),
+          el("th", {}, withInfo("Source URL", "Direct link to the file and line in GitHub for Code Under Test warnings.")),
+          el("th", {}, withInfo("Type", "Violation classification: Code Under Test, Library, or Python.")),
+          el("th", {}, withInfo("Checker/Specification", "Dynamic analysis checker(s) or specification(s) associated with this warning.")),
+          el("th", {}, withInfo("Triggering test", "Test case that triggered the warning (placeholder if unavailable).")),
+          el("th", {}, withInfo("Total Occurrences", "Total number of times this warning occurred in the run."))
         )),
         el("tbody")
       );
@@ -1959,7 +1981,10 @@
       const bd = v.breakdown || [];
       const table = el("table",
         {},
-        el("thead", {}, el("tr", {}, el("th", {}, "Spec"), el("th", {}, "Count"))),
+        el("thead", {}, el("tr", {},
+          el("th", {}, withInfo("Spec", "Specification name in the breakdown list.")),
+          el("th", {}, withInfo("Count", "Number of occurrences for this specification."))
+        )),
         el("tbody", {}, ...(bd.length ? bd.map(b =>
           el("tr", {}, el("td", {}, b.spec), el("td", {}, String(b.count)))
         ) : [el("tr", {}, el("td", {colspan:"2"}, el("span", {class:"muted"}, "No spec entries found.")))]))
