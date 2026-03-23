@@ -159,6 +159,10 @@
       gap: 8px 8px;
       align-items: start;
     }
+    /* Survey: Project Metadata card — subtle gray vs white Commit Metadata */
+    .card-project-metadata {
+      background: #f8f9fa;
+    }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js" integrity="sha256-LAEQ8l5cCwX6yFT1s1m8QX7wKjIvmyuHJ0v+qK2qTn0=" crossorigin="anonymous"></script>
 </head>
@@ -485,7 +489,7 @@
         ? el("a", {href:p.url, target:"_blank", style:"color:#2563eb; word-break:break-all;"}, p.url)
         : el("span", {class:"muted"}, "—")
       ), "Repository URL for this project.");
-      app.append(el("div", {class:"card"},
+      app.append(el("div", {class:"card card-project-metadata"},
         el("h3", {style:"margin-top:0; margin-bottom:12px;"}, "Project Metadata"),
         metaGrid
       ));
