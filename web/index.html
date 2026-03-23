@@ -1318,22 +1318,41 @@
             if ((plotType === "times_only" || plotType === "both") && hasTime) {
               const validTimes = [...origTimes, ...pymopTimes, ...pymopLibTimes, ...dylinTimes].filter(t => t > -5);
               const maxTime = validTimes.length > 0 ? Math.max(...validTimes) : 1;
-              const minTime = validTimes.length > 0 ? Math.min(...validTimes) : 0;
+              const sortedValidDesc = validTimes.slice().sort((a, b) => b - a);
+              const secondMaxTime = sortedValidDesc.length > 1 ? sortedValidDesc[1] : maxTime;
               const yMaxTime = maxTime * 1.16;
               const yMinTime = -5;
+              // If one series is a strong outlier (e.g., PyMOP with libraries),
+              // use log scaling so smaller time series remain visually distinguishable.
+              const useLogTimeScale = secondMaxTime > 0 && (maxTime / secondMaxTime) >= 8;
               
               const toYpTime = v => {
-                const clamped = Math.max(yMinTime, v);
-                const normalized = (clamped - yMinTime) / (yMaxTime - yMinTime);
+                if (v <= -5) return Mp.t + innerHp;
+                const clamped = Math.max(0, v);
+                const normalized = useLogTimeScale
+                  ? (Math.log10(clamped + 1) / Math.log10(yMaxTime + 1))
+                  : ((clamped - 0) / (yMaxTime - 0));
                 return Mp.t + (innerHp - normalized * innerHp);
               };
               
               // Right y-axis labels for times
-              const timeTicks = 5;
-              for (let i = 0; i <= timeTicks; i++) {
-                const val = yMinTime + (yMaxTime - yMinTime) * (i / timeTicks);
-                const y = Mp.t + (innerHp - (i / timeTicks) * innerHp);
-                plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(1)));
+              if (useLogTimeScale) {
+                // Always show failure marker at bottom.
+                plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(Mp.t + innerHp + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, "-5"));
+                const logTickCandidates = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+                const logTicks = logTickCandidates.filter(v => v <= yMaxTime);
+                if (!logTicks.includes(0)) logTicks.unshift(0);
+                logTicks.forEach((val) => {
+                  const y = Mp.t + (innerHp - (Math.log10(val + 1) / Math.log10(yMaxTime + 1)) * innerHp);
+                  plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(0)));
+                });
+              } else {
+                const timeTicks = 5;
+                for (let i = 0; i <= timeTicks; i++) {
+                  const val = yMinTime + (yMaxTime - yMinTime) * (i / timeTicks);
+                  const y = Mp.t + (innerHp - (i / timeTicks) * innerHp);
+                  plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(1)));
+                }
               }
               
               // Y-axis label for time (right side, rotated)
@@ -1625,7 +1644,7 @@
         }
       }
       
-      tableHeaders.push(el("th", {}, withInfo("Unique Warnings Detected", "Count of unique warning detected in this commit.")));
+      tableHeaders.push(el("th", {}, withInfo("Total Warnings Detected", "Count of total unique warnings detected in this commit.")));
       
       if (hasCoverage) {
         tableHeaders.push(el("th", {}, withInfo("Coverage", "Reported coverage value for this commit.")));
@@ -1637,6 +1656,9 @@
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
+      app.append(el("div", {class:"muted", style:"margin:6px 0 8px 0; font-size:12px;"},
+        "Note: Click a commit SHA in the table to view detailed warnings and timing information for that commit."
+      ));
       app.append(table);
 
       function parseLocalDT(val){
@@ -1898,7 +1920,7 @@
       } else if (numNew === 0 && numOld === 0) {
         violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
       }
-      addRow("Unique Violations", el("div", {}, ...violationParts), "Count of unique violation locations in this commit.");
+      addRow("Total Warnings Detected", el("div", {}, ...violationParts), "Count of total unique warnings detected in this commit.");
       
       // Add coverage if available (hide on survey pages)
       if (kind !== "survey" && c.coverage !== undefined && c.coverage !== null) {
