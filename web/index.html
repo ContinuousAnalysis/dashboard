@@ -133,6 +133,8 @@
         showHelpTooltip(icon, helpText || "");
       });
       icon.addEventListener("mouseenter", () => showHelpTooltip(icon, helpText || ""));
+      icon.addEventListener("mouseleave", () => hideHelpTooltip());
+      icon.addEventListener("blur", () => hideHelpTooltip());
       return icon;
     };
 
@@ -555,9 +557,9 @@
           addRow("Commit Timestamp (ET)", el("div", {}, ts ? fmtET(ts) : "—"), "Commit timestamp shown in Eastern Time.");
           addRow("Commit Files Changed", el("div", {}, numFiles), "Number of Python files changed in this commit.");
           addRow("Time to Run Only Tests", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
+          addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
           addRow("Time to Monitor Tests with PyMOP (Without Libraries)", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (without libraries).");
           addRow("Time to Monitor Tests with PyMOP (With Libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (with libraries).");
-          addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
           addRow("Unique Warnings Detected", el("div", {},
             el("span", {style:"color:#6b7280;"}, String(numCurrent))
           ), "Count of unique warning detected in this commit.");
@@ -1202,6 +1204,7 @@
           // Time data is already loaded by collect.py from cumulative_results CSV
           const originalTimes = [];
           const pymopTimes = [];
+          const pymopLibsTimes = [];
           const dylinTimes = [];
           
           if (isHistoryLike) {
@@ -1210,19 +1213,21 @@
               if (sha && cc.end_to_end_times) {
                 originalTimes.push(parseTime(cc.end_to_end_times.original));
                 pymopTimes.push(parseTime(cc.end_to_end_times.pymop));
+                pymopLibsTimes.push(parseTime(cc.end_to_end_times.pymop_libs));
                 dylinTimes.push(parseTime(cc.end_to_end_times.dylin));
               } else {
                 originalTimes.push(-5.0);
                 pymopTimes.push(-5.0);
+                pymopLibsTimes.push(-5.0);
                 dylinTimes.push(-5.0);
               }
             });
           }
           
-          const hasTimeData = isHistoryLike && originalTimes.some(t => t > -5);
+          const hasTimeData = isHistoryLike && [...originalTimes, ...pymopTimes, ...pymopLibsTimes, ...dylinTimes].some(t => t > -5);
           
             // Function to create plot based on type
-          const createPlot = (plotType, origTimes, pymopTimes, dylinTimes, hasTime) => {
+          const createPlot = (plotType, origTimes, pymopTimes, pymopLibTimes, dylinTimes, hasTime) => {
             // Increase right margin to accommodate time y-axis labels and legend
             const Wp = 800, Hp = 220, Mp = {t:16, r:70, b:40, l:40};
             const innerWp = Wp - Mp.l - Mp.r;
@@ -1311,7 +1316,7 @@
             
             // Plot times if needed
             if ((plotType === "times_only" || plotType === "both") && hasTime) {
-              const validTimes = [...origTimes, ...pymopTimes, ...dylinTimes].filter(t => t > -5);
+              const validTimes = [...origTimes, ...pymopTimes, ...pymopLibTimes, ...dylinTimes].filter(t => t > -5);
               const maxTime = validTimes.length > 0 ? Math.max(...validTimes) : 1;
               const minTime = validTimes.length > 0 ? Math.min(...validTimes) : 0;
               const yMaxTime = maxTime * 1.16;
@@ -1393,12 +1398,14 @@
               
               if (plotType === "times_only") {
                 plotTimeLine(origTimes, "#dc2626", "s", "Original Time");
-                plotTimeLine(pymopTimes, "#16a34a", "^", "Pymop Time");
-                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin Time");
+                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin Time (Without Libraries)");
+                plotTimeLine(pymopTimes, "#16a34a", "^", "PyMOP Time (Without Libraries)");
+                plotTimeLine(pymopLibTimes, "#7c3aed", "o", "Pymop Time (With Libraries)");
               } else { // both
                 plotTimeLine(origTimes, "#dc2626", "s", "Original Time");
-                plotTimeLine(pymopTimes, "#16a34a", "^", "Pymop Time");
-                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin Time");
+                plotTimeLine(dylinTimes, "#fbbf24", "D", "Dylin Time (Without Libraries)");
+                plotTimeLine(pymopTimes, "#16a34a", "^", "PyMOP Time (Without Libraries)");
+                plotTimeLine(pymopLibTimes, "#7c3aed", "o", "Pymop Time (With Libraries)");
               }
             }
             
@@ -1416,13 +1423,14 @@
         const timeData = {
           originalTimes: [...originalTimes],
           pymopTimes: [...pymopTimes],
+          pymopLibsTimes: [...pymopLibsTimes],
           dylinTimes: [...dylinTimes],
           hasTimeData: hasTimeData
         };
         
         // Create plot function that uses current time data
         const createPlotWithTimeData = (plotType) => {
-          return createPlot(plotType, timeData.originalTimes, timeData.pymopTimes, timeData.dylinTimes, timeData.hasTimeData);
+          return createPlot(plotType, timeData.originalTimes, timeData.pymopTimes, timeData.pymopLibsTimes, timeData.dylinTimes, timeData.hasTimeData);
         };
         
         const plotSwitcher = el("div", {class:"plot-switcher", style:"display:flex; gap:8px; margin-bottom:8px;"});
@@ -1460,13 +1468,15 @@
                 ? [
                     {color: "#2563eb", label: "Violations"},
                     {color: "#dc2626", label: "Original Time"},
-                    {color: "#16a34a", label: "Pymop Time"},
-                    {color: "#fbbf24", label: "Dylin Time"}
+                    {color: "#fbbf24", label: "Dylin Time (Without Libraries)"},
+                    {color: "#16a34a", label: "PyMOP Time (Without Libraries)"},
+                    {color: "#7c3aed", label: "Pymop Time (With Libraries)"}
                   ]
                 : [
                     {color: "#dc2626", label: "Original Time"},
-                    {color: "#16a34a", label: "Pymop Time"},
-                    {color: "#fbbf24", label: "Dylin Time"}
+                    {color: "#fbbf24", label: "Dylin Time (Without Libraries)"},
+                    {color: "#16a34a", label: "PyMOP Time (Without Libraries)"},
+                    {color: "#7c3aed", label: "Pymop Time (With Libraries)"}
                   ];
             
             legendItems.forEach((item) => {
@@ -1594,16 +1604,25 @@
       // Table header
       const tableHeaders = [
         el("th", {}, withInfo("Commit", "Git commit SHA for this row.")),
-        el("th", {}, withInfo("Commit Message", "Commit message associated with the commit SHA.")),
         el("th", {}, withInfo("Commit Timestamp (ET)", "Commit timestamp shown in Eastern Time."))
       ];
+      const isSurvey = kind === "survey";
+      if (!isSurvey) {
+        tableHeaders.splice(1, 0, el("th", {}, withInfo("Commit Message", "Commit message associated with the commit SHA.")));
+      }
       
       // Add Files Changed column for history runs
       if (isHistoryLike) {
         tableHeaders.push(el("th", {}, withInfo("Files Changed", "Number of Python files changed in this commit.")));
-        tableHeaders.push(el("th", {}, withInfo("Time to Run Only Tests", "Original end-to-end test runtime without monitoring.")));
-        tableHeaders.push(el("th", {}, withInfo("Time to Monitor Tests with PyMOP (Without Libraries)", "End-to-end time to run and monitor tests with PyMOP (without libraries).")));
-        tableHeaders.push(el("th", {}, withInfo("Time to Monitor Tests with Dylin (Without Libraries)", "End-to-end time to run and monitor tests with Dylin (without libraries).")));
+        if (isSurvey) {
+          tableHeaders.push(el("th", {}, withInfo("Original Time", "Original end-to-end test runtime without monitoring.")));
+          tableHeaders.push(el("th", {}, withInfo("Monitoring Time (Without Libraries)", "Sum of end-to-end time to run and monitor tests with PyMOP (without libraries) and with Dylin (without libraries).")));
+          tableHeaders.push(el("th", {}, withInfo("Monitoring Time (With Libraries)", "End-to-end time to run and monitor tests with PyMOP (with libraries).")));
+        } else {
+          tableHeaders.push(el("th", {}, withInfo("Time to Run Only Tests", "Original end-to-end test runtime without monitoring.")));
+          tableHeaders.push(el("th", {}, withInfo("Time to Monitor Tests with PyMOP (Without Libraries)", "End-to-end time to run and monitor tests with PyMOP (without libraries).")));
+          tableHeaders.push(el("th", {}, withInfo("Time to Monitor Tests with Dylin (Without Libraries)", "End-to-end time to run and monitor tests with Dylin (without libraries).")));
+        }
       }
       
       tableHeaders.push(el("th", {}, withInfo("Unique Warnings Detected", "Count of unique warning detected in this commit.")));
@@ -1660,15 +1679,16 @@
             // Only use current_commit_timestamp, show "x" if not available
             const displayTimestamp = c.current_commit_timestamp ? fmtET(c.current_commit_timestamp) : "x";
             
-            // Truncate commit message if too long
-            const commitMessage = c.current_commit_message || "";
-            const shortMessage = commitMessage.length > 100 ? commitMessage.substring(0, 97) + "..." : commitMessage;
-            
             const rowCells = [
               el("td", {style:"min-width:80px;"}, el("a", {href:`#/${kind}/p/${p.slug}/c/${c.current_commit_sha || c.sha}`, class:"nowrap"}, (c.current_commit_sha || c.sha).slice(0,7))),
-              el("td", {title: commitMessage, style:"max-width:600px;"}, shortMessage),
               el("td", {style:"min-width:140px;"}, displayTimestamp)
             ];
+            if (!isSurvey) {
+              // Truncate commit message if too long
+              const commitMessage = c.current_commit_message || "";
+              const shortMessage = commitMessage.length > 100 ? commitMessage.substring(0, 97) + "..." : commitMessage;
+              rowCells.splice(1, 0, el("td", {title: commitMessage, style:"max-width:600px;"}, shortMessage));
+            }
             
             // Add Files Changed and Monitoring Time columns for history-like runs
             if (isHistoryLike) {
@@ -1687,28 +1707,39 @@
                 return isNaN(num) ? -5.0 : num;
               };
               
-              let monitoringTime = "—";
-              if (c.end_to_end_times) {
-                let pymopTime = parseTime(c.end_to_end_times.pymop);
-                let dylinTime = parseTime(c.end_to_end_times.dylin);
-                // Treat -5 as 0 for both (so failures don't affect the sum)
-                if (pymopTime <= -5) {
-                  pymopTime = 0;
+              if (isSurvey) {
+                const origTime = c.end_to_end_times ? parseTime(c.end_to_end_times.original) : -5.0;
+                const dylinTime = c.end_to_end_times ? parseTime(c.end_to_end_times.dylin) : -5.0;
+                const pymopTime = c.end_to_end_times ? parseTime(c.end_to_end_times.pymop) : -5.0;
+                const pymopLibsTime = c.end_to_end_times ? parseTime(c.end_to_end_times.pymop_libs) : -5.0;
+                const monitoringNoLibs = (pymopTime > -5 ? pymopTime : 0) + (dylinTime > -5 ? dylinTime : 0);
+                rowCells.push(el("td", {style:"min-width:120px;"}, origTime > -5 ? `${origTime.toFixed(2)}s` : "Not Available"));
+                rowCells.push(el("td", {style:"min-width:160px;"}, monitoringNoLibs > 0 ? `${monitoringNoLibs.toFixed(2)}s` : "Not Available"));
+                rowCells.push(el("td", {style:"min-width:160px;"}, pymopLibsTime > -5 ? `${pymopLibsTime.toFixed(2)}s` : "Not Available"));
+              } else {
+                let monitoringTime = "—";
+                if (c.end_to_end_times) {
+                  let pymopTime = parseTime(c.end_to_end_times.pymop);
+                  let dylinTime = parseTime(c.end_to_end_times.dylin);
+                  // Treat -5 as 0 for both (so failures don't affect the sum)
+                  if (pymopTime <= -5) {
+                    pymopTime = 0;
+                  }
+                  if (dylinTime <= -5) {
+                    dylinTime = 0;
+                  }
+                  
+                  // Calculate sum: pymop + dylin
+                  const sum = pymopTime + dylinTime;
+                  if (sum > 0) {
+                    monitoringTime = sum.toFixed(2) + "s";
+                  } else {
+                    // Both were -5 (now 0), so sum is 0
+                    monitoringTime = "—";
+                  }
                 }
-                if (dylinTime <= -5) {
-                  dylinTime = 0;
-                }
-                
-                // Calculate sum: pymop + dylin
-                const sum = pymopTime + dylinTime;
-                if (sum > 0) {
-                  monitoringTime = sum.toFixed(2) + "s";
-                } else {
-                  // Both were -5 (now 0), so sum is 0
-                  monitoringTime = "—";
-                }
+                rowCells.push(el("td", {style:"min-width:120px;"}, monitoringTime));
               }
-              rowCells.push(el("td", {style:"min-width:120px;"}, monitoringTime));
             }
             
             rowCells.push(el("td", {style:"min-width:120px; text-align:left;"}, ...violationParts));
@@ -1808,14 +1839,14 @@
           const dylinTime = parseTime(c.end_to_end_times.dylin);
 
           addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
+          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end runtime with Dylin instrumentation.");
           addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end runtime with PyMOP instrumentation.");
           addRow("PyMOP E2E test time (with libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end runtime with PyMOP instrumentation including libraries.");
-          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end runtime with Dylin instrumentation.");
         } else {
           addRow("Original E2E test time", el("div", {}, "x"), "Original end-to-end test runtime without monitoring.");
+          addRow("Dylin E2E test time", el("div", {}, "x"), "End-to-end runtime with Dylin instrumentation.");
           addRow("PyMOP E2E test time", el("div", {}, "x"), "End-to-end runtime with PyMOP instrumentation.");
           addRow("PyMOP E2E test time (with libraries)", el("div", {}, "x"), "End-to-end runtime with PyMOP instrumentation including libraries.");
-          addRow("Dylin E2E test time", el("div", {}, "x"), "End-to-end runtime with Dylin instrumentation.");
         }
       }
       
