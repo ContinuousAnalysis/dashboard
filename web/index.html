@@ -388,7 +388,7 @@
           labelSpan
         )};
       };
-      const cutToggle = mkCheck("cut", "CUT");
+      const cutToggle = mkCheck("cut", "Code Under Test (CUT)");
       const libToggle = mkCheck("lib", "Library");
       const pyToggle = mkCheck("py", "Python");
       filterRow.append(cutToggle.node, libToggle.node, pyToggle.node);
@@ -435,7 +435,7 @@
             if (cls.isLib) libCount += 1;
             if (cls.isPy) pyCount += 1;
           });
-          cutToggle.labelSpan.textContent = `CUT (${cutCount})`;
+          cutToggle.labelSpan.textContent = `Code Under Test (CUT) (${cutCount})`;
           libToggle.labelSpan.textContent = `Library (${libCount})`;
           pyToggle.labelSpan.textContent = `Python (${pyCount})`;
 
@@ -510,7 +510,7 @@
         );
 
         const sections = [
-          { key: "cut", label: "CUT", match: (v) => classifyViolation(v).isCut },
+          { key: "cut", label: "Code Under Test (CUT)", match: (v) => classifyViolation(v).isCut },
           { key: "lib", label: "Library", match: (v) => classifyViolation(v).isLib },
           { key: "py", label: "Python/PyMOP source", match: (v) => classifyViolation(v).isPy },
         ];
@@ -1832,7 +1832,7 @@
         if (cls.isLib) libTotal += 1;
         if (cls.isPy) pyTotal += 1;
       });
-      const cutT = mkType("cut", `CUT (${cutTotal})`);
+      const cutT = mkType("cut", `Code Under Test (CUT) (${cutTotal})`);
       const libT = mkType("lib", `Library (${libTotal})`);
       const pyT = mkType("py", `Python (${pyTotal})`);
       typeRow.append(cutT.node, libT.node, pyT.node);
@@ -1871,7 +1871,7 @@
           );
 
         const sections = [
-          { label: "CUT", match: (v) => classifyViolation(v).isCut },
+          { label: "Code Under Test (CUT)", match: (v) => classifyViolation(v).isCut },
           { label: "Library", match: (v) => classifyViolation(v).isLib },
           { label: "Python/PyMOP source", match: (v) => classifyViolation(v).isPy },
         ];
@@ -1892,7 +1892,7 @@
             })
             .forEach(v => {
               const cls = classifyViolation(v);
-              const typeLabel = cls.isCut ? "CUT" : cls.isLib ? "Library" : "Python";
+              const typeLabel = cls.isCut ? "Code Under Test (CUT)" : cls.isLib ? "Library" : "Python";
               const filePath = String(v.file || "").replace(/^\/+/, "");
               const lineNum = v.line != null ? Number(v.line) : null;
               const sourceUrl = (cls.isCut && baseRepoUrl && sha && filePath && lineNum)
