@@ -560,9 +560,9 @@
           addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
           addRow("Time to Monitor Tests with PyMOP (Without Libraries)", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (without libraries).");
           addRow("Time to Monitor Tests with PyMOP (With Libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (with libraries).");
-          addRow("Unique Warnings Detected", el("div", {},
+          addRow("Total Warnings Detected", el("div", {},
             el("span", {style:"color:#6b7280;"}, String(numCurrent))
-          ), "Count of unique warning detected in this commit.");
+          ), "Count of total unique warnings detected in this commit.");
 
           infoCard.append(metaGrid);
         }
@@ -986,6 +986,7 @@
       const p = findProject(ds, slug);
       if (!p) return app.append(el("div", {}, "Project not found"));
       const isHistoryLike = (kind === "hist" || kind === "survey");
+      const isSurveyKind = kind === "survey";
       // Survey participant view: no breadcrumbs inside a project
       if (kind !== "survey") {
         app.append(breadcrumb([{href:`#/${kind}`, text:"Home"}, {text:p.full_name}]));
@@ -1318,13 +1319,10 @@
             if ((plotType === "times_only" || plotType === "both") && hasTime) {
               const validTimes = [...origTimes, ...pymopTimes, ...pymopLibTimes, ...dylinTimes].filter(t => t > -5);
               const maxTime = validTimes.length > 0 ? Math.max(...validTimes) : 1;
-              const sortedValidDesc = validTimes.slice().sort((a, b) => b - a);
-              const secondMaxTime = sortedValidDesc.length > 1 ? sortedValidDesc[1] : maxTime;
               const yMaxTime = maxTime * 1.16;
               const yMinTime = -5;
-              // If one series is a strong outlier (e.g., PyMOP with libraries),
-              // use log scaling so smaller time series remain visually distinguishable.
-              const useLogTimeScale = secondMaxTime > 0 && (maxTime / secondMaxTime) >= 8;
+              // Always use log scaling for times.
+              const useLogTimeScale = true;
               
               const toYpTime = v => {
                 if (v <= -5) return Mp.t + innerHp;
@@ -1336,24 +1334,15 @@
               };
               
               // Right y-axis labels for times
-              if (useLogTimeScale) {
-                // Always show failure marker at bottom.
-                plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(Mp.t + innerHp + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, "-5"));
-                const logTickCandidates = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
-                const logTicks = logTickCandidates.filter(v => v <= yMaxTime);
-                if (!logTicks.includes(0)) logTicks.unshift(0);
-                logTicks.forEach((val) => {
-                  const y = Mp.t + (innerHp - (Math.log10(val + 1) / Math.log10(yMaxTime + 1)) * innerHp);
-                  plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(0)));
-                });
-              } else {
-                const timeTicks = 5;
-                for (let i = 0; i <= timeTicks; i++) {
-                  const val = yMinTime + (yMaxTime - yMinTime) * (i / timeTicks);
-                  const y = Mp.t + (innerHp - (i / timeTicks) * innerHp);
-                  plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(1)));
-                }
-              }
+              // Always show failure marker at bottom.
+              plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(Mp.t + innerHp + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, "-5"));
+              const logTickCandidates = [0, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
+              const logTicks = logTickCandidates.filter(v => v <= yMaxTime);
+              if (!logTicks.includes(0)) logTicks.unshift(0);
+              logTicks.forEach((val) => {
+                const y = Mp.t + (innerHp - (Math.log10(val + 1) / Math.log10(yMaxTime + 1)) * innerHp);
+                plotElements.push(svgEl("text", {x:String(Wp - Mp.r + 3), y:String(y + 4), fill:"#6b7280", "font-size":"10", "text-anchor":"start"}, val.toFixed(0)));
+              });
               
               // Y-axis label for time (right side, rotated)
               const timeLabelY = Mp.t + innerHp / 2;
@@ -1656,8 +1645,8 @@
         el("tbody")
       );
       const tbody = table.querySelector("tbody");
-      app.append(el("div", {class:"muted", style:"margin:6px 0 8px 0; font-size:12px;"},
-        "Note: Click a commit SHA in the table to view detailed warnings and timing information for that commit."
+      app.append(el("div", {class:"muted", style:"margin:8px 0 10px 0; font-size:13px;"},
+        "Note: Click a commit SHA in the table below to view detailed warnings and timing information for that commit."
       ));
       app.append(table);
 
@@ -1823,7 +1812,7 @@
 
       addRow("Commit", el("div", {}, el("code", {}, sha)), "Git commit SHA for this analyzed run.");
       addRow("Commit Message", el("div", {}, commitMessage), "Commit message associated with this SHA.");
-      addRow("Timestamp (ET)", el("div", {}, displayTimestamp), "Commit timestamp shown in Eastern Time.");
+      addRow(isSurveyKind ? "Commit Timestamp (ET)" : "Timestamp (ET)", el("div", {}, displayTimestamp), "Commit timestamp shown in Eastern Time.");
       
       // Add GitHub URL and Files Changed for history-like runs
       if (isHistoryLike) {
@@ -1843,7 +1832,7 @@
         const numFiles = c.num_python_file_changed !== undefined && c.num_python_file_changed !== null 
           ? String(c.num_python_file_changed) 
           : "—";
-        addRow("Files Changed", el("div", {}, numFiles), "Number of Python files changed in this commit.");
+        addRow(isSurveyKind ? "Commit Files Changed" : "Files Changed", el("div", {}, numFiles), "Number of Python files changed in this commit.");
         
         // Add End-to-end times
         const parseTime = (val) => {
@@ -1860,15 +1849,15 @@
           const pymopLibsTime = parseTime(c.end_to_end_times.pymop_libs);
           const dylinTime = parseTime(c.end_to_end_times.dylin);
 
-          addRow("Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
-          addRow("Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end runtime with Dylin instrumentation.");
-          addRow("PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end runtime with PyMOP instrumentation.");
-          addRow("PyMOP E2E test time (with libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end runtime with PyMOP instrumentation including libraries.");
+          addRow(isSurveyKind ? "Time to Run Only Tests" : "Original E2E test time", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "Not Available"), "Original end-to-end test runtime without monitoring.");
+          addRow(isSurveyKind ? "Time to Monitor Tests with Dylin (Without Libraries)" : "Dylin E2E test time", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "Not Available"), "End-to-end runtime with Dylin instrumentation.");
+          addRow(isSurveyKind ? "Time to Monitor Tests with PyMOP (Without Libraries)" : "PyMOP E2E test time", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "Not Available"), "End-to-end runtime with PyMOP instrumentation.");
+          addRow(isSurveyKind ? "Time to Monitor Tests with PyMOP (With Libraries)" : "PyMOP E2E test time (with libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "Not Available"), "End-to-end runtime with PyMOP instrumentation including libraries.");
         } else {
-          addRow("Original E2E test time", el("div", {}, "x"), "Original end-to-end test runtime without monitoring.");
-          addRow("Dylin E2E test time", el("div", {}, "x"), "End-to-end runtime with Dylin instrumentation.");
-          addRow("PyMOP E2E test time", el("div", {}, "x"), "End-to-end runtime with PyMOP instrumentation.");
-          addRow("PyMOP E2E test time (with libraries)", el("div", {}, "x"), "End-to-end runtime with PyMOP instrumentation including libraries.");
+          addRow(isSurveyKind ? "Time to Run Only Tests" : "Original E2E test time", el("div", {}, "Not Available"), "Original end-to-end test runtime without monitoring.");
+          addRow(isSurveyKind ? "Time to Monitor Tests with Dylin (Without Libraries)" : "Dylin E2E test time", el("div", {}, "Not Available"), "End-to-end runtime with Dylin instrumentation.");
+          addRow(isSurveyKind ? "Time to Monitor Tests with PyMOP (Without Libraries)" : "PyMOP E2E test time", el("div", {}, "Not Available"), "End-to-end runtime with PyMOP instrumentation.");
+          addRow(isSurveyKind ? "Time to Monitor Tests with PyMOP (With Libraries)" : "PyMOP E2E test time (with libraries)", el("div", {}, "Not Available"), "End-to-end runtime with PyMOP instrumentation including libraries.");
         }
       }
       
@@ -1908,19 +1897,26 @@
         }
       }
       
-      // Build violation display: grey current, red delta +, green delta -
-      const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
-      if (numNew > 0 && numOld > 0) {
-        violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
-        violationParts.push(el("span", {style:"color:#16a34a; margin-left:4px;"}, `(-${numOld})`));
-      } else if (numNew > 0) {
-        violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
-      } else if (numOld > 0) {
-        violationParts.push(el("span", {style:"color:#16a34a; margin-left:8px;"}, `(-${numOld})`));
-      } else if (numNew === 0 && numOld === 0) {
-        violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
+      // For survey commit detail, match the main survey page format (no delta chips).
+      if (isSurveyKind) {
+        addRow("Unique Warnings Detected", el("div", {},
+          el("span", {style:"color:#6b7280;"}, String(numCurrent))
+        ), "Count of unique warning detected in this commit.");
+      } else {
+        // Build violation display: grey current, red delta +, green delta -
+        const violationParts = [el("span", {style:"color:#6b7280;"}, String(numCurrent))];
+        if (numNew > 0 && numOld > 0) {
+          violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+          violationParts.push(el("span", {style:"color:#16a34a; margin-left:4px;"}, `(-${numOld})`));
+        } else if (numNew > 0) {
+          violationParts.push(el("span", {style:"color:#dc2626; margin-left:8px;"}, `(+${numNew})`));
+        } else if (numOld > 0) {
+          violationParts.push(el("span", {style:"color:#16a34a; margin-left:8px;"}, `(-${numOld})`));
+        } else if (numNew === 0 && numOld === 0) {
+          violationParts.push(el("span", {style:"color:#6b7280; margin-left:8px;"}, "(0)"));
+        }
+        addRow("Total Warnings Detected", el("div", {}, ...violationParts), "Count of total unique warnings detected in this commit.");
       }
-      addRow("Total Warnings Detected", el("div", {}, ...violationParts), "Count of total unique warnings detected in this commit.");
       
       // Add coverage if available (hide on survey pages)
       if (kind !== "survey" && c.coverage !== undefined && c.coverage !== null) {
