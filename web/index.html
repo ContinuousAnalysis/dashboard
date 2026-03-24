@@ -697,9 +697,9 @@
           addRow("Commit Timestamp (ET)", el("div", {}, ts ? fmtET(ts) : "—"), "Commit timestamp shown in Eastern Time.");
           addRow("Commit Files Changed", el("div", {}, numFiles), "Number of Python files changed in this commit.");
           addRow("Time to Run Only Tests", el("div", {}, origTime > -5 ? origTime.toFixed(2) + "s" : "x"), "Original end-to-end test runtime without monitoring.");
-          addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
-          addRow("Time to Monitor Tests with PyMOP (Without Libraries)", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (without libraries).");
-          addRow("Time to Monitor Tests with PyMOP (With Libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "x"), "End-to-end time to run and monitor tests with PyMOP (with libraries).");
+          addRow("Time to Monitor Tests with Dylin (Without Libraries)", el("div", {}, dylinTime > -5 ? dylinTime.toFixed(2) + "s" : "Not Available"), "End-to-end time to run and monitor tests with Dylin (without libraries).");
+          addRow("Time to Monitor Tests with PyMOP (Without Libraries)", el("div", {}, pymopTime > -5 ? pymopTime.toFixed(2) + "s" : "Not Available"), "End-to-end time to run and monitor tests with PyMOP (without libraries).");
+          addRow("Time to Monitor Tests with PyMOP (With Libraries)", el("div", {}, pymopLibsTime > -5 ? pymopLibsTime.toFixed(2) + "s" : "Not Available"), "End-to-end time to run and monitor tests with PyMOP (with libraries).");
           addRow("Total Warnings Detected", el("div", {}, String(numCurrent)),
             "Count of total unique warnings detected in this commit.");
 
